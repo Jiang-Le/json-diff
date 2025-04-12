@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import loader from '@monaco-editor/loader'
-import '@fortawesome/fontawesome-free/css/all.css'
+import '@mdi/font/css/materialdesignicons.css'
 
 const isCompareMode = ref(false)
 const leftEditorContainer = ref(null)
@@ -418,15 +418,15 @@ onBeforeUnmount(() => {
   <div class="app-container">
     <div class="toolbar">
       <div class="tool-button" @click="handleFormat">
-        <i class="fas fa-align-left"></i>
+        <i class="mdi mdi-format-align-left"></i>
         <span>Format</span>
       </div>
       <div class="tool-button" @click="handleSort">
-        <i class="fas fa-sort-alpha-down"></i>
+        <i class="mdi mdi-sort-alphabetical-ascending"></i>
         <span>Sort</span>
       </div>
       <div class="tool-button" :class="{ active: isCompareMode }" @click="toggleCompareMode">
-        <i class="fas fa-sync"></i>
+        <i class="mdi mdi-compare"></i>
         <span>Compare</span>
       </div>
     </div>
