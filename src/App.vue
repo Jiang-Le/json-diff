@@ -1,35 +1,334 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { createJSONEditor } from 'vanilla-jsoneditor'
+import loader from '@monaco-editor/loader'
 import '@fortawesome/fontawesome-free/css/all.css'
 
-const editorContainer = ref(null)
-let editor = null
+const isCompareMode = ref(false)
+const leftEditorContainer = ref(null)
+const rightEditorContainer = ref(null)
+let leftEditor = null
+let rightEditor = null
+let monaco = null
 
-const initialContent = {
-  text: undefined,
-  json: {
-    name: "JSON Diff Tool",
-    description: "A tool to compare JSON files",
-    version: "1.0.0"
+const leftContent = ref({
+  name: "JSON Diff Tool",
+  description: "A tool to compare JSON files",
+  version: "1.0.0"
+})
+
+const rightContent = ref({
+  name: "JSON Diff Tool",
+  description: "A modified version",
+  version: "2.0.0"
+})
+
+function formatJSON(obj) {
+  return JSON.stringify(obj, null, 2)
+}
+
+async function initializeMonaco() {
+  monaco = await loader.init()
+  
+  // 设置编辑器选项
+  const editorOptions = {
+    language: 'json',
+    theme: 'vs',
+    automaticLayout: true,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize: 14,
+    tabSize: 2,
+    renderValidationDecorations: 'on',
+    formatOnPaste: true,
+    formatOnType: true
+  }
+
+  // 创建左侧编辑器
+  leftEditor = monaco.editor.create(leftEditorContainer.value, {
+    ...editorOptions,
+    value: formatJSON(leftContent.value),
+    readOnly: false
+  })
+
+  // 监听左侧编辑器内容变化
+  leftEditor.onDidChangeModelContent(() => {
+    try {
+      const content = JSON.parse(leftEditor.getValue())
+      leftContent.value = content
+      if (isCompareMode.value && rightEditor) {
+        highlightDifferences()
+      }
+    } catch (e) {
+      console.error('Invalid JSON in left editor')
+    }
+  })
+}
+
+function initializeRightEditor() {
+  if (!rightEditorContainer.value || !monaco) return
+
+  // 创建右侧编辑器
+  rightEditor = monaco.editor.create(rightEditorContainer.value, {
+    language: 'json',
+    theme: 'vs',
+    automaticLayout: true,
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    fontSize: 14,
+    tabSize: 2,
+    renderValidationDecorations: 'on',
+    formatOnPaste: true,
+    formatOnType: true,
+    value: formatJSON(rightContent.value),
+    readOnly: false
+  })
+
+  // 监听右侧编辑器内容变化
+  rightEditor.onDidChangeModelContent(() => {
+    try {
+      const content = JSON.parse(rightEditor.getValue())
+      rightContent.value = content
+      highlightDifferences()
+    } catch (e) {
+      console.error('Invalid JSON in right editor')
+    }
+  })
+}
+
+function compareJSON(obj1, obj2, path = []) {
+  const differences = []
+  const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})])
+
+  for (const key of allKeys) {
+    const currentPath = [...path, key]
+    const value1 = obj1 ? obj1[key] : undefined
+    const value2 = obj2 ? obj2[key] : undefined
+
+    if (value1 === undefined && value2 !== undefined) {
+      // 新增的键
+      differences.push({ 
+        path: currentPath, 
+        type: 'added',
+        value: value2
+      })
+    } else if (value1 !== undefined && value2 === undefined) {
+      // 删除的键
+      differences.push({ 
+        path: currentPath, 
+        type: 'removed',
+        value: value1
+      })
+    } else if (typeof value1 === 'object' && value1 !== null && typeof value2 === 'object' && value2 !== null) {
+      // 如果两边都是对象，比较它们的键
+      const keys1 = Object.keys(value1)
+      const keys2 = Object.keys(value2)
+      const keysAreDifferent = keys1.length !== keys2.length || 
+        keys1.some(k => !keys2.includes(k)) || 
+        keys2.some(k => !keys1.includes(k))
+
+      if (keysAreDifferent) {
+        // 找出具体哪些键发生了变化
+        const removedKeys = keys1.filter(k => !keys2.includes(k))
+        const addedKeys = keys2.filter(k => !keys1.includes(k))
+        
+        // 对每个变化的键添加差异记录
+        removedKeys.forEach(k => {
+          differences.push({
+            path: [...currentPath, k],
+            type: 'removed',
+            value: value1[k]
+          })
+        })
+        
+        addedKeys.forEach(k => {
+          differences.push({
+            path: [...currentPath, k],
+            type: 'added',
+            value: value2[k]
+          })
+        })
+
+        // 对于共同存在的键，继续递归比较
+        const commonKeys = keys1.filter(k => keys2.includes(k))
+        commonKeys.forEach(k => {
+          differences.push(...compareJSON(value1[k], value2[k], [...currentPath, k]))
+        })
+      } else {
+        // 如果键相同，继续递归比较值
+        differences.push(...compareJSON(value1, value2, currentPath))
+      }
+    } else if (JSON.stringify(value1) !== JSON.stringify(value2)) {
+      // 值不同
+      differences.push({ 
+        path: currentPath, 
+        type: 'modified',
+        oldValue: value1,
+        newValue: value2
+      })
+    }
+  }
+  return differences
+}
+
+function findLineNumber(editor, path) {
+  const content = editor.getValue()
+  const lines = content.split('\n')
+  const targetKey = path[path.length - 1]
+  let foundLines = []
+  let depth = 0
+  let currentPath = []
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    
+    // 处理对象的开始
+    if (line.includes('{')) {
+      depth++
+    }
+    
+    // 处理对象的结束
+    if (line.includes('}')) {
+      depth--
+      if (depth < currentPath.length) {
+        currentPath.pop()
+      }
+    }
+
+    // 处理键值对
+    const keyMatch = line.match(/"([^"]+)"\s*:/)
+    if (keyMatch) {
+      const key = keyMatch[1]
+      
+      // 如果这一行包含一个新的对象开始，将这个键添加到当前路径
+      if (line.includes('{')) {
+        currentPath.push(key)
+      }
+      
+      // 检查是否是目标键
+      if (key === targetKey) {
+        // 检查当前路径是否匹配目标路径的前缀
+        const pathPrefix = path.slice(0, -1)
+        const isPathMatch = pathPrefix.length <= currentPath.length &&
+          pathPrefix.every((p, idx) => p === currentPath[idx])
+
+        if (isPathMatch) {
+          foundLines.push(i + 1)
+        }
+      }
+    }
+  }
+
+  return foundLines
+}
+
+function highlightDifferences() {
+  if (!leftEditor || !rightEditor) return
+
+  try {
+    const leftJson = JSON.parse(leftEditor.getValue())
+    const rightJson = JSON.parse(rightEditor.getValue())
+    
+    // 清除现有装饰
+    const oldLeftDecorations = leftEditor.getModel().getAllDecorations()
+    const oldRightDecorations = rightEditor.getModel().getAllDecorations()
+    leftEditor.deltaDecorations(oldLeftDecorations.map(d => d.id), [])
+    rightEditor.deltaDecorations(oldRightDecorations.map(d => d.id), [])
+
+    // 比较并高亮差异
+    const differences = compareJSON(leftJson, rightJson)
+    const leftDecorations = []
+    const rightDecorations = []
+
+    differences.forEach(diff => {
+      const leftLineNumbers = findLineNumber(leftEditor, diff.path)
+      const rightLineNumbers = findLineNumber(rightEditor, diff.path)
+
+      leftLineNumbers.forEach(lineNumber => {
+        leftDecorations.push({
+          range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+          options: {
+            isWholeLine: true,
+            className: diff.type === 'removed' ? 'line-delete' : 'line-modified',
+            linesDecorationsClassName: 'line-decoration',
+            glyphMarginClassName: diff.type === 'removed' ? 'glyph-delete' : 'glyph-modified',
+            hoverMessage: { value: getHoverMessage(diff, 'left') }
+          }
+        })
+      })
+
+      rightLineNumbers.forEach(lineNumber => {
+        rightDecorations.push({
+          range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+          options: {
+            isWholeLine: true,
+            className: diff.type === 'added' ? 'line-insert' : 'line-modified',
+            linesDecorationsClassName: 'line-decoration',
+            glyphMarginClassName: diff.type === 'added' ? 'glyph-insert' : 'glyph-modified',
+            hoverMessage: { value: getHoverMessage(diff, 'right') }
+          }
+        })
+      })
+    })
+
+    leftEditor.deltaDecorations([], leftDecorations)
+    rightEditor.deltaDecorations([], rightDecorations)
+  } catch (e) {
+    console.error('Error comparing JSON:', e)
+  }
+}
+
+function getHoverMessage(diff, side) {
+  const formatValue = (value) => {
+    if (typeof value === 'object' && value !== null) {
+      return JSON.stringify(value, null, 2)
+    }
+    return JSON.stringify(value)
+  }
+
+  switch (diff.type) {
+    case 'added':
+      return `新增: ${formatValue(diff.value)}`
+    case 'removed':
+      return `删除: ${formatValue(diff.value)}`
+    case 'modified':
+      return side === 'left' 
+        ? `原始值: ${formatValue(diff.oldValue)}`
+        : `修改为: ${formatValue(diff.newValue)}`
+    default:
+      return ''
+  }
+}
+
+function toggleCompareMode() {
+  isCompareMode.value = !isCompareMode.value
+  
+  if (isCompareMode.value) {
+    // 切换到对比模式，保持左侧编辑器，添加右侧编辑器
+    setTimeout(() => {
+      if (!rightEditor && rightEditorContainer.value) {
+        initializeRightEditor()
+        highlightDifferences()
+      }
+    })
+  } else {
+    // 切换回单编辑器模式，移除右侧编辑器
+    if (rightEditor) {
+      rightEditor.dispose()
+      rightEditor = null
+    }
   }
 }
 
 onMounted(() => {
-  editor = createJSONEditor({
-    target: editorContainer.value,
-    props: {
-      content: initialContent,
-      onChange: (updatedContent, previousContent, { contentErrors, patchResult }) => {
-        console.log('JSON changed:', updatedContent)
-      }
-    }
-  })
+  initializeMonaco()
 })
 
 onBeforeUnmount(() => {
-  if (editor) {
-    editor.destroy()
+  if (leftEditor) {
+    leftEditor.dispose()
+  }
+  if (rightEditor) {
+    rightEditor.dispose()
   }
 })
 </script>
@@ -49,7 +348,7 @@ onBeforeUnmount(() => {
         <i class="fas fa-save"></i>
         <span>Save</span>
       </div>
-      <div class="tool-button">
+      <div class="tool-button" :class="{ active: isCompareMode }" @click="toggleCompareMode">
         <i class="fas fa-sync"></i>
         <span>Compare</span>
       </div>
@@ -58,8 +357,9 @@ onBeforeUnmount(() => {
         <span>Settings</span>
       </div>
     </div>
-    <div class="editor-container">
-      <div ref="editorContainer" class="json-editor-component"></div>
+    <div class="editor-container" :class="{ 'compare-mode': isCompareMode }">
+      <div ref="leftEditorContainer" class="editor-component"></div>
+      <div v-show="isCompareMode" ref="rightEditorContainer" class="editor-component"></div>
     </div>
   </div>
 </template>
@@ -120,7 +420,7 @@ html, body {
   transition: background-color 0.3s;
 }
 
-.tool-button:hover {
+.tool-button:hover, .tool-button.active {
   background-color: #34495e;
 }
 
@@ -139,34 +439,65 @@ html, body {
   background-color: #f8f9fa;
   overflow: hidden;
   display: flex;
-  min-width: 0; /* 防止flex子项溢出 */
+  min-width: 0;
+  gap: 1rem;
 }
 
-.json-editor-component {
+.editor-container.compare-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.editor-component {
   flex: 1;
   height: 100%;
-  overflow: auto;
-  min-width: 0; /* 防止flex子项溢出 */
-}
-
-/* 自定义编辑器样式 */
-:root {
-  --jse-theme-color: #2c3e50;
-  --jse-theme-color-highlight: #34495e;
-}
-
-.json-editor-component :deep(.jse-main) {
+  overflow: hidden;
   border: 1px solid #ddd;
   border-radius: 4px;
-  height: 100%;
 }
 
-.json-editor-component :deep(.jse-main) button {
-  background-color: var(--jse-theme-color);
-  color: white;
+/* Monaco Editor 自定义样式 */
+.editor-component :deep(.monaco-editor) {
+  padding-top: 10px;
 }
 
-.json-editor-component :deep(.jse-main) button:hover {
-  background-color: var(--jse-theme-color-highlight);
+.editor-component :deep(.monaco-editor .margin) {
+  background-color: #f8f9fa;
+}
+
+/* 差异视图样式 */
+.line-modified {
+  background-color: rgba(255, 220, 100, 0.2) !important;
+}
+
+.line-insert {
+  background-color: rgba(155, 185, 85, 0.2) !important;
+}
+
+.line-delete {
+  background-color: rgba(255, 100, 100, 0.2) !important;
+}
+
+.line-decoration {
+  width: 5px !important;
+}
+
+.glyph-modified {
+  background-color: #ffd700;
+  width: 5px !important;
+}
+
+.glyph-insert {
+  background-color: #9bb955;
+  width: 5px !important;
+}
+
+.glyph-delete {
+  background-color: #ff6464;
+  width: 5px !important;
+}
+
+.editor-component :deep(.monaco-editor .line-numbers) {
+  color: #666;
 }
 </style>
