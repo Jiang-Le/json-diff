@@ -26,6 +26,87 @@ function formatJSON(obj) {
   return JSON.stringify(obj, null, 2)
 }
 
+function sortJSON(obj) {
+  if (Array.isArray(obj)) {
+    return obj.sort((a, b) => {
+      if (typeof a === 'number' && typeof b === 'number') {
+        return a - b
+      }
+      return String(a).localeCompare(String(b))
+    }).map(item => {
+      if (typeof item === 'object' && item !== null) {
+        return sortJSON(item)
+      }
+      return item
+    })
+  }
+  
+  if (typeof obj === 'object' && obj !== null) {
+    const sortedObj = {}
+    Object.keys(obj)
+      .sort((a, b) => a.localeCompare(b))
+      .forEach(key => {
+        sortedObj[key] = typeof obj[key] === 'object' && obj[key] !== null
+          ? sortJSON(obj[key])
+          : obj[key]
+      })
+    return sortedObj
+  }
+  
+  return obj
+}
+
+function handleFormat() {
+  try {
+    if (isCompareMode.value) {
+      // 在比较模式下，格式化两个编辑器
+      if (leftEditor) {
+        const leftContent = JSON.parse(leftEditor.getValue())
+        leftEditor.setValue(formatJSON(leftContent))
+      }
+      if (rightEditor) {
+        const rightContent = JSON.parse(rightEditor.getValue())
+        rightEditor.setValue(formatJSON(rightContent))
+      }
+    } else {
+      // 在单编辑器模式下，只格式化左侧编辑器
+      if (leftEditor) {
+        const content = JSON.parse(leftEditor.getValue())
+        leftEditor.setValue(formatJSON(content))
+      }
+    }
+  } catch (e) {
+    console.error('Invalid JSON:', e)
+  }
+}
+
+function handleSort() {
+  try {
+    if (isCompareMode.value) {
+      // 在比较模式下，排序两个编辑器
+      if (leftEditor) {
+        const leftContent = JSON.parse(leftEditor.getValue())
+        const sortedLeft = sortJSON(leftContent)
+        leftEditor.setValue(formatJSON(sortedLeft))
+      }
+      if (rightEditor) {
+        const rightContent = JSON.parse(rightEditor.getValue())
+        const sortedRight = sortJSON(rightContent)
+        rightEditor.setValue(formatJSON(sortedRight))
+      }
+    } else {
+      // 在单编辑器模式下，只排序左侧编辑器
+      if (leftEditor) {
+        const content = JSON.parse(leftEditor.getValue())
+        const sorted = sortJSON(content)
+        leftEditor.setValue(formatJSON(sorted))
+      }
+    }
+  } catch (e) {
+    console.error('Invalid JSON:', e)
+  }
+}
+
 async function initializeMonaco() {
   monaco = await loader.init()
   
@@ -336,25 +417,17 @@ onBeforeUnmount(() => {
 <template>
   <div class="app-container">
     <div class="toolbar">
-      <div class="tool-button">
-        <i class="fas fa-file"></i>
-        <span>New</span>
+      <div class="tool-button" @click="handleFormat">
+        <i class="fas fa-align-left"></i>
+        <span>Format</span>
       </div>
-      <div class="tool-button">
-        <i class="fas fa-folder-open"></i>
-        <span>Open</span>
-      </div>
-      <div class="tool-button">
-        <i class="fas fa-save"></i>
-        <span>Save</span>
+      <div class="tool-button" @click="handleSort">
+        <i class="fas fa-sort-alpha-down"></i>
+        <span>Sort</span>
       </div>
       <div class="tool-button" :class="{ active: isCompareMode }" @click="toggleCompareMode">
         <i class="fas fa-sync"></i>
         <span>Compare</span>
-      </div>
-      <div class="tool-button">
-        <i class="fas fa-cog"></i>
-        <span>Settings</span>
       </div>
     </div>
     <div class="editor-container" :class="{ 'compare-mode': isCompareMode }">
