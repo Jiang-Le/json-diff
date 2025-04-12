@@ -244,20 +244,36 @@ function compareJSON(obj1, obj2, path = []) {
 
       // 处理键的存在性
       if (!(key in obj1)) {
+        // 新对象中存在，旧对象中不存在的键
         differences.push({
           path: currentPath,
           type: 'added',
-          value: value2
+          value: value2,
+          isKeyDiff: true
         })
       } else if (!(key in obj2)) {
+        // 旧对象中存在，新对象中不存在的键
         differences.push({
           path: currentPath,
           type: 'removed',
-          value: value1
+          value: value1,
+          isKeyDiff: true
         })
-      } else {
-        // 递归比较值
-        differences.push(...compareJSON(value1, value2, currentPath))
+      } else if (typeof value1 === 'object' && value1 !== null && typeof value2 === 'object' && value2 !== null) {
+        // 如果两边都是对象或数组，递归比较
+        const nestedDiffs = compareJSON(value1, value2, currentPath)
+        // 如果嵌套对象有差异，将差异添加到结果中
+        if (nestedDiffs.length > 0) {
+          differences.push(...nestedDiffs)
+        }
+      } else if (value1 !== value2) {
+        // 值不同
+        differences.push({
+          path: currentPath,
+          type: 'modified',
+          oldValue: value1,
+          newValue: value2
+        })
       }
     }
     return differences
@@ -285,9 +301,11 @@ function findLineNumber(editor, path) {
   let currentPath = []
   let inArray = false
   let arrayIndex = -1
-  let keyStartLine = -1
   let bracketCount = 0
 
+  // 用于跟踪当前处理的对象层级
+  let objectStack = []
+  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     
@@ -297,6 +315,7 @@ function findLineNumber(editor, path) {
       arrayIndex = -1
       depth++
       if (bracketCount === 0) bracketCount++
+      objectStack.push('array')
     }
     
     // 处理数组结束
@@ -307,6 +326,7 @@ function findLineNumber(editor, path) {
         currentPath.pop()
       }
       bracketCount--
+      objectStack.pop()
     }
 
     // 处理对象开始
@@ -314,6 +334,7 @@ function findLineNumber(editor, path) {
       inArray = false
       depth++
       if (bracketCount === 0) bracketCount++
+      objectStack.push('object')
     }
     
     // 处理对象结束
@@ -323,19 +344,20 @@ function findLineNumber(editor, path) {
         currentPath.pop()
       }
       bracketCount--
+      objectStack.pop()
     }
 
     // 处理数组元素
-    if (inArray) {
+    if (inArray && objectStack[objectStack.length - 1] === 'array') {
       if (!line.includes('[') && !line.includes(']')) {
         arrayIndex++
         if (!isNaN(targetKey) && parseInt(targetKey) === arrayIndex) {
           const pathPrefix = path.slice(0, -1)
-          const isPathMatch = pathPrefix.length <= currentPath.length &&
+          // 确保路径完全匹配
+          const isPathMatch = pathPrefix.length === currentPath.length &&
             pathPrefix.every((p, idx) => p === currentPath[idx])
 
           if (isPathMatch) {
-            keyStartLine = i
             foundLines.push(i + 1)
             
             // 如果元素是对象或数组，找到它的结束位置
@@ -359,20 +381,24 @@ function findLineNumber(editor, path) {
 
     // 处理键值对
     const keyMatch = line.match(/"([^"]+)"\s*:/)
-    if (keyMatch) {
+    if (keyMatch && objectStack[objectStack.length - 1] === 'object') {
       const key = keyMatch[1]
       
+      // 更新当前路径
       if (line.includes('{')) {
+        currentPath.push(key)
+      } else if (!line.includes('{') && !line.includes('[')) {
+        // 对于简单值，临时添加到路径中
         currentPath.push(key)
       }
       
       if (key === targetKey) {
         const pathPrefix = path.slice(0, -1)
-        const isPathMatch = pathPrefix.length <= currentPath.length &&
+        // 确保路径完全匹配
+        const isPathMatch = pathPrefix.length === currentPath.length - 1 &&
           pathPrefix.every((p, idx) => p === currentPath[idx])
 
         if (isPathMatch) {
-          keyStartLine = i
           foundLines.push(i + 1)
           
           // 如果值在下一行
@@ -389,7 +415,7 @@ function findLineNumber(editor, path) {
             }
           }
           
-          // 如果值是对象或数组
+          // 如果值是对象或数组，找到它的结束位置
           if (line.includes('{') || line.includes('[')) {
             let innerBracketCount = 1
             let j = i + 1
@@ -403,6 +429,11 @@ function findLineNumber(editor, path) {
             }
           }
         }
+      }
+      
+      // 如果不是对象或数组的开始，移除临时添加的键
+      if (!line.includes('{') && !line.includes('[')) {
+        currentPath.pop()
       }
     }
   }
