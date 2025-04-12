@@ -174,76 +174,105 @@ function initializeRightEditor() {
 
 function compareJSON(obj1, obj2, path = []) {
   const differences = []
-  const allKeys = new Set([...Object.keys(obj1 || {}), ...Object.keys(obj2 || {})])
 
-  for (const key of allKeys) {
-    const currentPath = [...path, key]
-    const value1 = obj1 ? obj1[key] : undefined
-    const value2 = obj2 ? obj2[key] : undefined
+  // 如果两个值完全相等（包括类型），直接返回空数组
+  if (obj1 === obj2) {
+    return differences
+  }
 
-    if (value1 === undefined && value2 !== undefined) {
-      // 新增的键
-      differences.push({ 
-        path: currentPath, 
-        type: 'added',
-        value: value2
-      })
-    } else if (value1 !== undefined && value2 === undefined) {
-      // 删除的键
-      differences.push({ 
-        path: currentPath, 
-        type: 'removed',
-        value: value1
-      })
-    } else if (typeof value1 === 'object' && value1 !== null && typeof value2 === 'object' && value2 !== null) {
-      // 如果两边都是对象，比较它们的键
-      const keys1 = Object.keys(value1)
-      const keys2 = Object.keys(value2)
-      const keysAreDifferent = keys1.length !== keys2.length || 
-        keys1.some(k => !keys2.includes(k)) || 
-        keys2.some(k => !keys1.includes(k))
-
-      if (keysAreDifferent) {
-        // 找出具体哪些键发生了变化
-        const removedKeys = keys1.filter(k => !keys2.includes(k))
-        const addedKeys = keys2.filter(k => !keys1.includes(k))
-        
-        // 对每个变化的键添加差异记录
-        removedKeys.forEach(k => {
-          differences.push({
-            path: [...currentPath, k],
-            type: 'removed',
-            value: value1[k]
-          })
-        })
-        
-        addedKeys.forEach(k => {
-          differences.push({
-            path: [...currentPath, k],
-            type: 'added',
-            value: value2[k]
-          })
-        })
-
-        // 对于共同存在的键，继续递归比较
-        const commonKeys = keys1.filter(k => keys2.includes(k))
-        commonKeys.forEach(k => {
-          differences.push(...compareJSON(value1[k], value2[k], [...currentPath, k]))
-        })
-      } else {
-        // 如果键相同，继续递归比较值
-        differences.push(...compareJSON(value1, value2, currentPath))
-      }
-    } else if (JSON.stringify(value1) !== JSON.stringify(value2)) {
-      // 值不同
-      differences.push({ 
-        path: currentPath, 
-        type: 'modified',
-        oldValue: value1,
-        newValue: value2
+  // 处理其中一个值为 undefined 或 null 的情况
+  if (obj1 === undefined || obj1 === null || obj2 === undefined || obj2 === null) {
+    if (obj1 !== obj2) {
+      differences.push({
+        path,
+        type: obj1 === undefined || obj1 === null ? 'added' : 'removed',
+        value: obj1 === undefined || obj1 === null ? obj2 : obj1
       })
     }
+    return differences
   }
+
+  // 如果类型不同，标记为修改
+  if (typeof obj1 !== typeof obj2) {
+    differences.push({
+      path,
+      type: 'modified',
+      oldValue: obj1,
+      newValue: obj2
+    })
+    return differences
+  }
+
+  // 处理数组
+  if (Array.isArray(obj1) && Array.isArray(obj2)) {
+    const maxLength = Math.max(obj1.length, obj2.length)
+    
+    for (let i = 0; i < maxLength; i++) {
+      const currentPath = [...path, i]
+      
+      // 数组越界检查
+      if (i >= obj1.length) {
+        // 新数组更长，标记为新增
+        differences.push({
+          path: currentPath,
+          type: 'added',
+          value: obj2[i]
+        })
+      } else if (i >= obj2.length) {
+        // 旧数组更长，标记为删除
+        differences.push({
+          path: currentPath,
+          type: 'removed',
+          value: obj1[i]
+        })
+      } else {
+        // 递归比较数组元素
+        differences.push(...compareJSON(obj1[i], obj2[i], currentPath))
+      }
+    }
+    return differences
+  }
+
+  // 处理对象
+  if (typeof obj1 === 'object' && typeof obj2 === 'object') {
+    const allKeys = new Set([...Object.keys(obj1), ...Object.keys(obj2)])
+
+    for (const key of allKeys) {
+      const currentPath = [...path, key]
+      const value1 = obj1[key]
+      const value2 = obj2[key]
+
+      // 处理键的存在性
+      if (!(key in obj1)) {
+        differences.push({
+          path: currentPath,
+          type: 'added',
+          value: value2
+        })
+      } else if (!(key in obj2)) {
+        differences.push({
+          path: currentPath,
+          type: 'removed',
+          value: value1
+        })
+      } else {
+        // 递归比较值
+        differences.push(...compareJSON(value1, value2, currentPath))
+      }
+    }
+    return differences
+  }
+
+  // 处理基本类型（数字、字符串、布尔值）
+  if (obj1 !== obj2) {
+    differences.push({
+      path,
+      type: 'modified',
+      oldValue: obj1,
+      newValue: obj2
+    })
+  }
+
   return differences
 }
 
@@ -254,21 +283,78 @@ function findLineNumber(editor, path) {
   let foundLines = []
   let depth = 0
   let currentPath = []
+  let inArray = false
+  let arrayIndex = -1
+  let keyStartLine = -1
+  let bracketCount = 0
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
     
-    // 处理对象的开始
-    if (line.includes('{')) {
+    // 处理数组开始
+    if (line.includes('[')) {
+      inArray = true
+      arrayIndex = -1
       depth++
+      if (bracketCount === 0) bracketCount++
     }
     
-    // 处理对象的结束
+    // 处理数组结束
+    if (line.includes(']')) {
+      inArray = false
+      depth--
+      if (depth < currentPath.length) {
+        currentPath.pop()
+      }
+      bracketCount--
+    }
+
+    // 处理对象开始
+    if (line.includes('{')) {
+      inArray = false
+      depth++
+      if (bracketCount === 0) bracketCount++
+    }
+    
+    // 处理对象结束
     if (line.includes('}')) {
       depth--
       if (depth < currentPath.length) {
         currentPath.pop()
       }
+      bracketCount--
+    }
+
+    // 处理数组元素
+    if (inArray) {
+      if (!line.includes('[') && !line.includes(']')) {
+        arrayIndex++
+        if (!isNaN(targetKey) && parseInt(targetKey) === arrayIndex) {
+          const pathPrefix = path.slice(0, -1)
+          const isPathMatch = pathPrefix.length <= currentPath.length &&
+            pathPrefix.every((p, idx) => p === currentPath[idx])
+
+          if (isPathMatch) {
+            keyStartLine = i
+            foundLines.push(i + 1)
+            
+            // 如果元素是对象或数组，找到它的结束位置
+            if (line.includes('{') || line.includes('[')) {
+              let innerBracketCount = 1
+              let j = i + 1
+              while (j < lines.length) {
+                const currentLine = lines[j].trim()
+                if (currentLine.includes('{') || currentLine.includes('[')) innerBracketCount++
+                if (currentLine.includes('}') || currentLine.includes(']')) innerBracketCount--
+                foundLines.push(j + 1)
+                if (innerBracketCount === 0) break
+                j++
+              }
+            }
+          }
+        }
+      }
+      continue
     }
 
     // 处理键值对
@@ -276,26 +362,52 @@ function findLineNumber(editor, path) {
     if (keyMatch) {
       const key = keyMatch[1]
       
-      // 如果这一行包含一个新的对象开始，将这个键添加到当前路径
       if (line.includes('{')) {
         currentPath.push(key)
       }
       
-      // 检查是否是目标键
       if (key === targetKey) {
-        // 检查当前路径是否匹配目标路径的前缀
         const pathPrefix = path.slice(0, -1)
         const isPathMatch = pathPrefix.length <= currentPath.length &&
           pathPrefix.every((p, idx) => p === currentPath[idx])
 
         if (isPathMatch) {
+          keyStartLine = i
           foundLines.push(i + 1)
+          
+          // 如果值在下一行
+          if (!line.includes('{') && !line.includes('[') && line.endsWith(':')) {
+            let j = i + 1
+            while (j < lines.length) {
+              const nextLine = lines[j].trim()
+              foundLines.push(j + 1)
+              // 如果遇到下一个键值对或结束符号，停止
+              if (nextLine.match(/"([^"]+)"\s*:/) || nextLine.includes('}') || nextLine.includes(']')) {
+                break
+              }
+              j++
+            }
+          }
+          
+          // 如果值是对象或数组
+          if (line.includes('{') || line.includes('[')) {
+            let innerBracketCount = 1
+            let j = i + 1
+            while (j < lines.length) {
+              const currentLine = lines[j].trim()
+              if (currentLine.includes('{') || currentLine.includes('[')) innerBracketCount++
+              if (currentLine.includes('}') || currentLine.includes(']')) innerBracketCount--
+              foundLines.push(j + 1)
+              if (innerBracketCount === 0) break
+              j++
+            }
+          }
         }
       }
     }
   }
 
-  return foundLines
+  return [...new Set(foundLines)].sort((a, b) => a - b)
 }
 
 function highlightDifferences() {
