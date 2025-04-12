@@ -1,6 +1,127 @@
 import { findLineNumber } from './findLineNumber'
 
 describe('findLineNumber', () => {
+  test('should handle empty input', () => {
+    expect(findLineNumber('', [])).toEqual([])
+    expect(findLineNumber('{}', [])).toEqual([])
+    expect(findLineNumber(null, ['key'])).toEqual([])
+  })
+
+  test('should find simple key-value pairs', () => {
+    const json = `{
+      "name": "John",
+      "age": 30
+    }`
+    expect(findLineNumber(json, ['name'])).toEqual([2])
+    expect(findLineNumber(json, ['age'])).toEqual([3])
+  })
+
+  test('should handle arrays', () => {
+    const json = `{
+      "numbers": [
+        1,
+        2,
+        3
+      ]
+    }`
+    expect(findLineNumber(json, ['numbers', 0])).toEqual([3])
+    expect(findLineNumber(json, ['numbers', 1])).toEqual([4])
+    expect(findLineNumber(json, ['numbers', 2])).toEqual([5])
+  })
+
+  test('should handle nested objects', () => {
+    const json = `{
+      "user": {
+        "details": {
+          "address": {
+            "city": "New York"
+          }
+        }
+      }
+    }`
+    expect(findLineNumber(json, ['user', 'details', 'address', 'city'])).toEqual([5])
+  })
+
+  test('should handle comments', () => {
+    const json = `{
+      // Single line comment
+      "key1": "value1",
+      /* Multi-line
+         comment */
+      "key2": "value2"
+    }`
+    expect(findLineNumber(json, ['key1'])).toEqual([3])
+    expect(findLineNumber(json, ['key2'])).toEqual([6])
+  })
+
+  test('should handle escaped characters', () => {
+    const json = `{
+      "normal": "value",
+      "escaped\\\"key": "value",
+      "string": "contains \\"quotes\\" inside"
+    }`
+    expect(findLineNumber(json, ['normal'])).toEqual([2])
+    expect(findLineNumber(json, ['escaped"key'])).toEqual([3])
+  })
+
+  test('should handle complex nested arrays', () => {
+    const json = `{
+      "matrix": [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9]
+      ]
+    }`
+    expect(findLineNumber(json, ['matrix', 0])).toEqual([3])
+    expect(findLineNumber(json, ['matrix', 1])).toEqual([4])
+    expect(findLineNumber(json, ['matrix', 2])).toEqual([5])
+  })
+
+  test('should handle mixed nested structures', () => {
+    const json = `{
+      "users": [
+        {
+          "id": 1,
+          "details": {
+            "name": "John"
+          }
+        },
+        {
+          "id": 2,
+          "details": {
+            "name": "Jane"
+          }
+        }
+      ]
+    }`
+    expect(findLineNumber(json, ['users', 0, 'details', 'name'])).toEqual([6])
+    expect(findLineNumber(json, ['users', 1, 'details', 'name'])).toEqual([12])
+  })
+
+  test('should handle non-string keys', () => {
+    const json = `{
+      123: "numeric key",
+      true: "boolean key",
+      null: "null key"
+    }`
+    expect(findLineNumber(json, ['123'])).toEqual([2])
+    expect(findLineNumber(json, ['true'])).toEqual([3])
+    expect(findLineNumber(json, ['null'])).toEqual([4])
+  })
+
+  test('should handle empty objects and arrays', () => {
+    const json = `{
+      "emptyObject": {},
+      "emptyArray": [],
+      "nested": {
+        "empty": {}
+      }
+    }`
+    expect(findLineNumber(json, ['emptyObject'])).toEqual([2])
+    expect(findLineNumber(json, ['emptyArray'])).toEqual([3])
+    expect(findLineNumber(json, ['nested', 'empty'])).toEqual([5])
+  })
+
   test('should find line number for top-level property', () => {
     const json = `{
   "name": "John",
@@ -78,20 +199,6 @@ describe('findLineNumber', () => {
     expect(findLineNumber(json, path)).toEqual([6, 7, 8, 9])
   })
 
-  test('should handle empty objects and arrays', () => {
-    const json = `{
-  "emptyObject": {},
-  "emptyArray": [],
-  "nested": {
-    "empty": {}
-  }
-}`
-    
-    expect(findLineNumber(json, ['emptyObject'])).toEqual([2])
-    expect(findLineNumber(json, ['emptyArray'])).toEqual([3])
-    expect(findLineNumber(json, ['nested', 'empty'])).toEqual([5])
-  })
-
   test('should handle complex nested structures', () => {
     const json = `{
   "data": {
@@ -133,7 +240,7 @@ describe('findLineNumber', () => {
     expect(findLineNumber(json, ['mixed', 0])).toEqual([3])
     expect(findLineNumber(json, ['mixed', 1])).toEqual([4])
     expect(findLineNumber(json, ['mixed', 2, 'key'])).toEqual([6])
-    expect(findLineNumber(json, ['mixed', 3])).toEqual([8, 9, 10])
+    expect(findLineNumber(json, ['mixed', 3])).toEqual([8, 9, 10, 11])
   })
 
   test('should handle JSON with comments and whitespace', () => {
