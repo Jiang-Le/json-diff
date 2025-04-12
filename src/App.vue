@@ -2,6 +2,9 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import loader from '@monaco-editor/loader'
 import '@mdi/font/css/materialdesignicons.css'
+import { sortJSON } from './utils/sortJSON'
+import { compareJSON } from './utils/compareJSON'
+import { findLineNumber } from './utils/findLineNumber'
 
 const isCompareMode = ref(false)
 const leftEditorContainer = ref(null)
@@ -24,36 +27,6 @@ const rightContent = ref({
 
 function formatJSON(obj) {
   return JSON.stringify(obj, null, 2)
-}
-
-function sortJSON(obj) {
-  if (Array.isArray(obj)) {
-    return obj.sort((a, b) => {
-      if (typeof a === 'number' && typeof b === 'number') {
-        return a - b
-      }
-      return String(a).localeCompare(String(b))
-    }).map(item => {
-      if (typeof item === 'object' && item !== null) {
-        return sortJSON(item)
-      }
-      return item
-    })
-  }
-  
-  if (typeof obj === 'object' && obj !== null) {
-    const sortedObj = {}
-    Object.keys(obj)
-      .sort((a, b) => a.localeCompare(b))
-      .forEach(key => {
-        sortedObj[key] = typeof obj[key] === 'object' && obj[key] !== null
-          ? sortJSON(obj[key])
-          : obj[key]
-      })
-    return sortedObj
-  }
-  
-  return obj
 }
 
 function handleFormat() {
@@ -172,328 +145,67 @@ function initializeRightEditor() {
   })
 }
 
-function compareJSON(obj1, obj2, path = []) {
-  const differences = []
-
-  // 如果两个值完全相等（包括类型），直接返回空数组
-  if (obj1 === obj2) {
-    return differences
-  }
-
-  // 处理其中一个值为 undefined 或 null 的情况
-  if (obj1 === undefined || obj1 === null || obj2 === undefined || obj2 === null) {
-    if (obj1 !== obj2) {
-      differences.push({
-        path,
-        type: obj1 === undefined || obj1 === null ? 'added' : 'removed',
-        value: obj1 === undefined || obj1 === null ? obj2 : obj1
-      })
-    }
-    return differences
-  }
-
-  // 如果类型不同，标记为修改
-  if (typeof obj1 !== typeof obj2) {
-    differences.push({
-      path,
-      type: 'modified',
-      oldValue: obj1,
-      newValue: obj2
-    })
-    return differences
-  }
-
-  // 处理数组
-  if (Array.isArray(obj1) && Array.isArray(obj2)) {
-    const maxLength = Math.max(obj1.length, obj2.length)
-    
-    for (let i = 0; i < maxLength; i++) {
-      const currentPath = [...path, i]
-      
-      // 数组越界检查
-      if (i >= obj1.length) {
-        // 新数组更长，标记为新增
-        differences.push({
-          path: currentPath,
-          type: 'added',
-          value: obj2[i]
-        })
-      } else if (i >= obj2.length) {
-        // 旧数组更长，标记为删除
-        differences.push({
-          path: currentPath,
-          type: 'removed',
-          value: obj1[i]
-        })
-      } else {
-        // 递归比较数组元素
-        differences.push(...compareJSON(obj1[i], obj2[i], currentPath))
-      }
-    }
-    return differences
-  }
-
-  // 处理对象
-  if (typeof obj1 === 'object' && typeof obj2 === 'object') {
-    const allKeys = new Set([...Object.keys(obj1), ...Object.keys(obj2)])
-
-    for (const key of allKeys) {
-      const currentPath = [...path, key]
-      const value1 = obj1[key]
-      const value2 = obj2[key]
-
-      // 处理键的存在性
-      if (!(key in obj1)) {
-        // 新对象中存在，旧对象中不存在的键
-        differences.push({
-          path: currentPath,
-          type: 'added',
-          value: value2,
-          isKeyDiff: true
-        })
-      } else if (!(key in obj2)) {
-        // 旧对象中存在，新对象中不存在的键
-        differences.push({
-          path: currentPath,
-          type: 'removed',
-          value: value1,
-          isKeyDiff: true
-        })
-      } else if (typeof value1 === 'object' && value1 !== null && typeof value2 === 'object' && value2 !== null) {
-        // 如果两边都是对象或数组，递归比较
-        const nestedDiffs = compareJSON(value1, value2, currentPath)
-        // 如果嵌套对象有差异，将差异添加到结果中
-        if (nestedDiffs.length > 0) {
-          differences.push(...nestedDiffs)
-        }
-      } else if (value1 !== value2) {
-        // 值不同
-        differences.push({
-          path: currentPath,
-          type: 'modified',
-          oldValue: value1,
-          newValue: value2
-        })
-      }
-    }
-    return differences
-  }
-
-  // 处理基本类型（数字、字符串、布尔值）
-  if (obj1 !== obj2) {
-    differences.push({
-      path,
-      type: 'modified',
-      oldValue: obj1,
-      newValue: obj2
-    })
-  }
-
-  return differences
-}
-
-function findLineNumber(editor, path) {
-  const content = editor.getValue()
-  const lines = content.split('\n')
-  const targetKey = path[path.length - 1]
-  let foundLines = []
-  let depth = 0
-  let currentPath = []
-  let inArray = false
-  let arrayIndex = -1
-  let bracketCount = 0
-
-  // 用于跟踪当前处理的对象层级
-  let objectStack = []
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim()
-    
-    // 处理数组开始
-    if (line.includes('[')) {
-      inArray = true
-      arrayIndex = -1
-      depth++
-      if (bracketCount === 0) bracketCount++
-      objectStack.push('array')
-    }
-    
-    // 处理数组结束
-    if (line.includes(']')) {
-      inArray = false
-      depth--
-      if (depth < currentPath.length) {
-        currentPath.pop()
-      }
-      bracketCount--
-      objectStack.pop()
-    }
-
-    // 处理对象开始
-    if (line.includes('{')) {
-      inArray = false
-      depth++
-      if (bracketCount === 0) bracketCount++
-      objectStack.push('object')
-    }
-    
-    // 处理对象结束
-    if (line.includes('}')) {
-      depth--
-      if (depth < currentPath.length) {
-        currentPath.pop()
-      }
-      bracketCount--
-      objectStack.pop()
-    }
-
-    // 处理数组元素
-    if (inArray && objectStack[objectStack.length - 1] === 'array') {
-      if (!line.includes('[') && !line.includes(']')) {
-        arrayIndex++
-        if (!isNaN(targetKey) && parseInt(targetKey) === arrayIndex) {
-          const pathPrefix = path.slice(0, -1)
-          // 确保路径完全匹配
-          const isPathMatch = pathPrefix.length === currentPath.length &&
-            pathPrefix.every((p, idx) => p === currentPath[idx])
-
-          if (isPathMatch) {
-            foundLines.push(i + 1)
-            
-            // 如果元素是对象或数组，找到它的结束位置
-            if (line.includes('{') || line.includes('[')) {
-              let innerBracketCount = 1
-              let j = i + 1
-              while (j < lines.length) {
-                const currentLine = lines[j].trim()
-                if (currentLine.includes('{') || currentLine.includes('[')) innerBracketCount++
-                if (currentLine.includes('}') || currentLine.includes(']')) innerBracketCount--
-                foundLines.push(j + 1)
-                if (innerBracketCount === 0) break
-                j++
-              }
-            }
-          }
-        }
-      }
-      continue
-    }
-
-    // 处理键值对
-    const keyMatch = line.match(/"([^"]+)"\s*:/)
-    if (keyMatch && objectStack[objectStack.length - 1] === 'object') {
-      const key = keyMatch[1]
-      
-      // 更新当前路径
-      if (line.includes('{')) {
-        currentPath.push(key)
-      } else if (!line.includes('{') && !line.includes('[')) {
-        // 对于简单值，临时添加到路径中
-        currentPath.push(key)
-      }
-      
-      if (key === targetKey) {
-        const pathPrefix = path.slice(0, -1)
-        // 确保路径完全匹配
-        const isPathMatch = pathPrefix.length === currentPath.length - 1 &&
-          pathPrefix.every((p, idx) => p === currentPath[idx])
-
-        if (isPathMatch) {
-          foundLines.push(i + 1)
-          
-          // 如果值在下一行
-          if (!line.includes('{') && !line.includes('[') && line.endsWith(':')) {
-            let j = i + 1
-            while (j < lines.length) {
-              const nextLine = lines[j].trim()
-              foundLines.push(j + 1)
-              // 如果遇到下一个键值对或结束符号，停止
-              if (nextLine.match(/"([^"]+)"\s*:/) || nextLine.includes('}') || nextLine.includes(']')) {
-                break
-              }
-              j++
-            }
-          }
-          
-          // 如果值是对象或数组，找到它的结束位置
-          if (line.includes('{') || line.includes('[')) {
-            let innerBracketCount = 1
-            let j = i + 1
-            while (j < lines.length) {
-              const currentLine = lines[j].trim()
-              if (currentLine.includes('{') || currentLine.includes('[')) innerBracketCount++
-              if (currentLine.includes('}') || currentLine.includes(']')) innerBracketCount--
-              foundLines.push(j + 1)
-              if (innerBracketCount === 0) break
-              j++
-            }
-          }
-        }
-      }
-      
-      // 如果不是对象或数组的开始，移除临时添加的键
-      if (!line.includes('{') && !line.includes('[')) {
-        currentPath.pop()
-      }
-    }
-  }
-
-  return [...new Set(foundLines)].sort((a, b) => a - b)
-}
-
 function highlightDifferences() {
-  if (!leftEditor || !rightEditor) return
-
+  if (!leftEditor.value || !rightEditor.value) return
+  
+  const leftContent = leftEditor.value.getValue()
+  const rightContent = rightEditor.value.getValue()
+  
   try {
-    const leftJson = JSON.parse(leftEditor.getValue())
-    const rightJson = JSON.parse(rightEditor.getValue())
+    const leftJson = JSON.parse(leftContent)
+    const rightJson = JSON.parse(rightContent)
     
-    // 清除现有装饰
-    const oldLeftDecorations = leftEditor.getModel().getAllDecorations()
-    const oldRightDecorations = rightEditor.getModel().getAllDecorations()
-    leftEditor.deltaDecorations(oldLeftDecorations.map(d => d.id), [])
-    rightEditor.deltaDecorations(oldRightDecorations.map(d => d.id), [])
-
-    // 比较并高亮差异
     const differences = compareJSON(leftJson, rightJson)
-    const leftDecorations = []
-    const rightDecorations = []
-
+    
+    // Clear previous decorations
+    leftDecorations.value = leftEditor.value.deltaDecorations(leftDecorations.value, [])
+    rightDecorations.value = rightEditor.value.deltaDecorations(rightDecorations.value, [])
+    
+    const leftHighlights = []
+    const rightHighlights = []
+    
     differences.forEach(diff => {
-      const leftLineNumbers = findLineNumber(leftEditor, diff.path)
-      const rightLineNumbers = findLineNumber(rightEditor, diff.path)
-
-      leftLineNumbers.forEach(lineNumber => {
-        leftDecorations.push({
-          range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+      const leftLines = findLineNumber(leftContent, diff.path)
+      const rightLines = findLineNumber(rightContent, diff.path)
+      
+      if (diff.type === 'removed' || diff.type === 'modified') {
+        leftHighlights.push({
+          range: new monaco.Range(
+            leftLines[0],
+            1,
+            leftLines[leftLines.length - 1],
+            1
+          ),
           options: {
             isWholeLine: true,
-            className: diff.type === 'removed' ? 'line-delete' : 'line-modified',
-            linesDecorationsClassName: 'line-decoration',
-            glyphMarginClassName: diff.type === 'removed' ? 'glyph-delete' : 'glyph-modified',
-            hoverMessage: { value: getHoverMessage(diff, 'left') }
+            className: diff.type === 'removed' ? 'removed-line' : 'modified-line',
+            glyphMarginClassName: diff.type === 'removed' ? 'removed-glyph' : 'modified-glyph'
           }
         })
-      })
-
-      rightLineNumbers.forEach(lineNumber => {
-        rightDecorations.push({
-          range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+      }
+      
+      if (diff.type === 'added' || diff.type === 'modified') {
+        rightHighlights.push({
+          range: new monaco.Range(
+            rightLines[0],
+            1,
+            rightLines[rightLines.length - 1],
+            1
+          ),
           options: {
             isWholeLine: true,
-            className: diff.type === 'added' ? 'line-insert' : 'line-modified',
-            linesDecorationsClassName: 'line-decoration',
-            glyphMarginClassName: diff.type === 'added' ? 'glyph-insert' : 'glyph-modified',
-            hoverMessage: { value: getHoverMessage(diff, 'right') }
+            className: diff.type === 'added' ? 'added-line' : 'modified-line',
+            glyphMarginClassName: diff.type === 'added' ? 'added-glyph' : 'modified-glyph'
           }
         })
-      })
+      }
     })
-
-    leftEditor.deltaDecorations([], leftDecorations)
-    rightEditor.deltaDecorations([], rightDecorations)
-  } catch (e) {
-    console.error('Error comparing JSON:', e)
+    
+    leftDecorations.value = leftEditor.value.deltaDecorations([], leftHighlights)
+    rightDecorations.value = rightEditor.value.deltaDecorations([], rightHighlights)
+    
+  } catch (error) {
+    console.error('Error parsing JSON:', error)
   }
 }
 
