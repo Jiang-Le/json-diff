@@ -134,8 +134,6 @@ async function initializeMonaco() {
   // 监听左侧编辑器内容变化
   leftEditor.onDidChangeModelContent(() => {
     try {
-      const content = JSON.parse(leftEditor.getValue())
-      leftContent.value = content
       if (isCompareMode.value && rightEditor) {
         highlightDifferences()
       }
@@ -167,8 +165,6 @@ function initializeRightEditor() {
   // 监听右侧编辑器内容变化
   rightEditor.onDidChangeModelContent(() => {
     try {
-      const content = JSON.parse(rightEditor.getValue())
-      rightContent.value = content
       highlightDifferences()
     } catch (e) {
       console.error('Invalid JSON in right editor')
