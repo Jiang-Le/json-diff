@@ -41,6 +41,14 @@ npm run build:plugin
 
 构建完成后，会在release目录生成.upx文件，可直接在uTools开发者工具中加载测试或发布。
 
+### 清理项目
+
+```bash
+npm run clean
+```
+
+清理命令会删除所有构建产物和临时文件，包括dist、release和coverage目录，以及日志文件等。
+
 ## 使用方法
 
 1. 在uTools中呼出插件（输入"JSON比较"、"json对比"等关键词）
