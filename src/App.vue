@@ -4,7 +4,7 @@ import loader from '@monaco-editor/loader'
 import '@mdi/font/css/materialdesignicons.css'
 import { sortJSON } from './utils/sortJSON'
 import { compareJSON } from './utils/compareJSON'
-import { findLineNumber } from './utils/findLineNumber'
+import { findLineNumber, buildLineNumberMap, pathToString } from './utils/findLineNumber'
 
 const isCompareMode = ref(false)
 const leftEditorContainer = ref(null)
@@ -155,10 +155,16 @@ function highlightDifferences() {
   const rightContent = rightEditor.getValue()
   
   try {
+    // 解析 JSON
     const leftJson = JSON.parse(leftContent)
     const rightJson = JSON.parse(rightContent)
     
+    // 计算差异
     const differences = compareJSON(leftJson, rightJson)
+    
+    // 预先构建行号映射，避免重复解析
+    const leftLineMap = buildLineNumberMap(leftContent)
+    const rightLineMap = buildLineNumberMap(rightContent)
     
     // Clear previous decorations
     leftDecorations.value = leftEditor.deltaDecorations(leftDecorations.value, [])
@@ -168,8 +174,9 @@ function highlightDifferences() {
     const rightHighlights = []
     
     differences.forEach(diff => {
-      const leftLines = findLineNumber(leftContent, diff.path)
-      const rightLines = findLineNumber(rightContent, diff.path)
+      // 使用预构建的行号映射调用 findLineNumber
+      const leftLines = findLineNumber(leftContent, diff.path, leftLineMap)
+      const rightLines = findLineNumber(rightContent, diff.path, rightLineMap)
       
       if (leftLines.length > 0 && (diff.type === 'removed' || diff.type === 'modified')) {
         leftHighlights.push({

@@ -2,28 +2,44 @@
  * 在 JSON 文本中查找指定路径对应的行号
  * @param {string} content - JSON 文本内容
  * @param {Array} path - 要查找的路径数组
+ * @param {Map} [prebuiltLineMap] - 可选的预先构建的行号映射
  * @returns {Array} 匹配的行号数组（1-based）
  */
-export function findLineNumber(content, path) {
+export function findLineNumber(content, path, prebuiltLineMap) {
   // 处理边界情况
   if (!content || !path || !Array.isArray(path) || path.length === 0) {
     return []
   }
 
   try {
-    // 第一步：解析 JSON 文本并记录键值对的行号
-    const lineMap = new Map() // 存储路径与行号的映射
-    const lines = content.split('\n')
+    // 如果提供了预构建的行号映射，则直接使用
+    const lineMap = prebuiltLineMap || buildLineNumberMap(content)
     
-    // 构建行号映射
-    parseJsonWithLineNumbers(content, lines, lineMap)
-    
-    // 第二步：使用路径查找对应的行号
+    // 使用路径查找对应的行号
     return findLinesByPath(lineMap, path)
   } catch (error) {
     console.error('Error in findLineNumber:', error)
     return []
   }
+}
+
+/**
+ * 构建 JSON 路径到行号的映射
+ * @param {string} content - JSON 文本内容
+ * @returns {Map} 存储路径与行号的映射
+ */
+export function buildLineNumberMap(content) {
+  if (!content) {
+    return new Map()
+  }
+
+  const lineMap = new Map() // 存储路径与行号的映射
+  const lines = content.split('\n')
+  
+  // 构建行号映射
+  parseJsonWithLineNumbers(content, lines, lineMap)
+  
+  return lineMap
 }
 
 /**
@@ -69,7 +85,7 @@ function findLinesByPath(lineMap, path) {
  * @param {Array} path - 路径数组
  * @returns {string} 路径字符串
  */
-function pathToString(path) {
+export function pathToString(path) {
   return path.map(segment => {
     // 处理数组索引或特殊字符的情况
     if (typeof segment === 'number' || typeof segment === 'boolean' || segment === null) {

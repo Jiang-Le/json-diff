@@ -1,4 +1,4 @@
-import { findLineNumber } from './findLineNumber'
+import { findLineNumber, buildLineNumberMap, pathToString } from './findLineNumber'
 
 describe('findLineNumber', () => {
   test('should handle empty input', () => {
@@ -274,5 +274,75 @@ describe('findLineNumber', () => {
     expect(findLineNumber(json, ['@type'])).toEqual([2])
     expect(findLineNumber(json, ['user-name'])).toEqual([3])
     expect(findLineNumber(json, ['data', '$ref'])).toEqual([5])
+  })
+
+  test('should use prebuilt line map when provided', () => {
+    const json = `{
+  "name": "John",
+  "age": 30,
+  "city": "New York"
+}`
+    // 预先构建行号映射
+    const lineMap = buildLineNumberMap(json)
+    
+    // 使用预构建的行号映射调用 findLineNumber
+    expect(findLineNumber(json, ['age'], lineMap)).toEqual([3])
+    expect(findLineNumber(json, ['city'], lineMap)).toEqual([4])
+  })
+})
+
+describe('buildLineNumberMap', () => {
+  test('should return empty map for empty input', () => {
+    const map = buildLineNumberMap('')
+    expect(map.size).toBe(0)
+  })
+
+  test('should build correct line map for simple JSON', () => {
+    const json = `{
+  "name": "John",
+  "age": 30
+}`
+    const lineMap = buildLineNumberMap(json)
+    
+    // 通过路径字符串查询行号映射
+    expect(lineMap.get(pathToString(['name']))).toEqual([2])
+    expect(lineMap.get(pathToString(['age']))).toEqual([3])
+  })
+
+  test('should build correct line map for nested structures', () => {
+    const json = `{
+  "person": {
+    "name": "John",
+    "address": {
+      "city": "New York"
+    }
+  }
+}`
+    const lineMap = buildLineNumberMap(json)
+    
+    expect(lineMap.get(pathToString(['person', 'name']))).toEqual([3])
+    expect(lineMap.get(pathToString(['person', 'address', 'city']))).toEqual([5])
+  })
+})
+
+describe('pathToString', () => {
+  test('should convert simple path to string', () => {
+    expect(pathToString(['name'])).toBe('.name')
+    expect(pathToString(['age'])).toBe('.age')
+  })
+
+  test('should handle array indices', () => {
+    expect(pathToString(['items', 0])).toBe('.items[0]')
+    expect(pathToString(['users', 1, 'name'])).toBe('.users[1].name')
+  })
+
+  test('should handle special values', () => {
+    expect(pathToString([true])).toBe('[true]')
+    expect(pathToString([false])).toBe('[false]')
+    expect(pathToString([null])).toBe('[null]')
+  })
+
+  test('should handle mixed path types', () => {
+    expect(pathToString(['data', 0, 'items', true, 'value'])).toBe('.data[0].items[true].value')
   })
 }) 
