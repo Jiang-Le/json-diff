@@ -1,29 +1,66 @@
-# json-diff
+# JSON Diff - uTools插件
 
-This template should help get you started developing with Vue 3 in Vite.
+一个用于比较JSON文件差异的uTools插件，能够直观地显示两个JSON文件之间的差异，并提供多种编辑和比较功能。
 
-## Recommended IDE Setup
+## 功能特点
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+- 高亮显示JSON文件之间的差异（新增、删除、修改）
+- JSON格式化和美化
+- JSON排序功能（按键名排序）
+- 双向编辑功能，可直接修改JSON内容
+- 文件加载和保存功能
+- 内容复制功能
+- 滚动同步功能，方便对比长文件
 
-## Customize configuration
+## 开发环境搭建
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+### 前提条件
 
-## Project Setup
+- 安装Node.js (推荐v16或更高版本)
+- 安装uTools开发者工具
 
-```sh
+### 安装依赖
+
+```bash
 npm install
 ```
 
-### Compile and Hot-Reload for Development
+### 开发模式
 
-```sh
+```bash
 npm run dev
 ```
 
-### Compile and Minify for Production
+在开发模式下，可以通过 `http://localhost:5173/` 访问应用。然后通过uTools开发者工具选择plugin.json文件接入开发。
 
-```sh
-npm run build
+### 构建插件
+
+```bash
+npm run build:plugin
 ```
+
+构建完成后，会在release目录生成.upx文件，可直接在uTools开发者工具中加载测试或发布。
+
+## 使用方法
+
+1. 在uTools中呼出插件（输入"JSON比较"、"json对比"等关键词）
+2. 点击"加载左侧"按钮加载第一个JSON文件
+3. 点击"对比"按钮进入比较模式
+4. 点击"加载右侧"按钮加载第二个JSON文件进行比较
+5. 差异部分会自动高亮显示:
+   - 红色: 删除的内容
+   - 绿色: 新增的内容
+   - 橙色: 修改的内容
+6. 将鼠标悬停在高亮区域可查看详细的差异信息
+7. 可使用"格式化"和"排序"功能优化显示效果
+8. 编辑后可通过"保存左侧"或"保存右侧"功能保存修改
+
+## 许可证
+
+MIT
+
+## 鸣谢
+
+- Vue.js
+- Monaco Editor
+- uTools平台

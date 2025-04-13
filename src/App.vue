@@ -6,6 +6,9 @@ import { sortJSON } from './utils/sortJSON'
 import { compareJSON } from './utils/compareJSON'
 import { findLineNumber, buildLineNumberMap, pathToString } from './utils/findLineNumber'
 
+// 检查是否在uTools环境中运行
+const isUTools = ref(typeof window.utools !== 'undefined')
+
 const isCompareMode = ref(false)
 const leftEditorContainer = ref(null)
 const rightEditorContainer = ref(null)
@@ -14,6 +17,9 @@ let rightEditor = null
 let monaco = null
 const leftDecorations = ref([])
 const rightDecorations = ref([])
+const leftFilePath = ref('')
+const rightFilePath = ref('')
+const fileChanged = ref(false)
 
 const leftContent = ref({
   "config": {
@@ -698,12 +704,221 @@ function formatJSON(obj) {
   return JSON.stringify(obj, null, 2)
 }
 
+// 加载左侧JSON文件
+function handleLoadLeftFile() {
+  if (!isUTools.value) {
+    console.error('此功能仅在uTools环境中可用')
+    return
+  }
+  
+  const result = window.selectFile({
+    title: '选择左侧JSON文件',
+    filters: [{ name: 'JSON文件', extensions: ['json'] }],
+    properties: ['openFile']
+  })
+  
+  if (result.success) {
+    leftFilePath.value = result.filePath
+    const fileResult = window.readJSONFile(result.filePath)
+    
+    if (fileResult.success) {
+      try {
+        const jsonContent = JSON.parse(fileResult.content)
+        if (leftEditor) {
+          leftEditor.setValue(formatJSON(jsonContent))
+          fileChanged.value = false
+          if (isCompareMode.value && rightEditor) {
+            highlightDifferences()
+          }
+        }
+        if (window.utools) {
+          window.utools.showNotification('已加载左侧JSON文件', '成功')
+        } else if (window.showNotification) {
+          window.showNotification('成功', '已加载左侧JSON文件')
+        }
+      } catch (e) {
+        if (window.utools) {
+          window.utools.showNotification('文件内容不是有效的JSON', '错误')
+        } else if (window.showNotification) {
+          window.showNotification('错误', '文件内容不是有效的JSON')
+        }
+      }
+    } else {
+      if (window.utools) {
+        window.utools.showNotification('无法读取文件: ' + fileResult.error, '错误')
+      } else if (window.showNotification) {
+        window.showNotification('错误', '无法读取文件: ' + fileResult.error)
+      }
+    }
+  }
+}
+
+// 加载右侧JSON文件
+function handleLoadRightFile() {
+  if (!isUTools.value) {
+    console.error('此功能仅在uTools环境中可用')
+    return
+  }
+  
+  if (!isCompareMode.value) {
+    toggleCompareMode()
+  }
+  
+  const result = window.selectFile({
+    title: '选择右侧JSON文件',
+    filters: [{ name: 'JSON文件', extensions: ['json'] }],
+    properties: ['openFile']
+  })
+  
+  if (result.success) {
+    rightFilePath.value = result.filePath
+    const fileResult = window.readJSONFile(result.filePath)
+    
+    if (fileResult.success) {
+      try {
+        const jsonContent = JSON.parse(fileResult.content)
+        if (rightEditor) {
+          rightEditor.setValue(formatJSON(jsonContent))
+          if (leftEditor) {
+            highlightDifferences()
+          }
+        }
+        if (window.utools) {
+          window.utools.showNotification('已加载右侧JSON文件', '成功')
+        } else if (window.showNotification) {
+          window.showNotification('成功', '已加载右侧JSON文件')
+        }
+      } catch (e) {
+        if (window.utools) {
+          window.utools.showNotification('文件内容不是有效的JSON', '错误')
+        } else if (window.showNotification) {
+          window.showNotification('错误', '文件内容不是有效的JSON')
+        }
+      }
+    } else {
+      if (window.utools) {
+        window.utools.showNotification('无法读取文件: ' + fileResult.error, '错误')
+      } else if (window.showNotification) {
+        window.showNotification('错误', '无法读取文件: ' + fileResult.error)
+      }
+    }
+  }
+}
+
+// 保存左侧编辑器内容
+function handleSaveLeftFile() {
+  if (!isUTools.value || !leftEditor) {
+    console.error('此功能仅在uTools环境中可用')
+    return
+  }
+  
+  let filePath = leftFilePath.value
+  
+  if (!filePath) {
+    const result = window.selectFile({
+      title: '保存JSON文件',
+      filters: [{ name: 'JSON文件', extensions: ['json'] }],
+      properties: ['saveFile']
+    })
+    
+    if (result.success) {
+      filePath = result.filePath
+      leftFilePath.value = filePath
+    } else {
+      return
+    }
+  }
+  
+  try {
+    const content = leftEditor.getValue()
+    // 检查是否是有效的JSON
+    JSON.parse(content)
+    
+    const saveResult = window.saveJSONFile(filePath, content)
+    if (saveResult.success) {
+      fileChanged.value = false
+      // 直接调用uTools的通知API
+      if (window.utools) {
+        window.utools.showNotification('文件已保存', '保存成功')
+      } else if (window.showNotification) {
+        window.showNotification('保存成功', '文件已保存')
+      }
+    } else {
+      if (window.utools) {
+        window.utools.showNotification('保存文件失败: ' + saveResult.error, '错误')
+      } else if (window.showNotification) {
+        window.showNotification('错误', '保存文件失败: ' + saveResult.error)
+      }
+    }
+  } catch (e) {
+    if (window.utools) {
+      window.utools.showNotification('内容不是有效的JSON，无法保存', '错误')
+    } else if (window.showNotification) {
+      window.showNotification('错误', '内容不是有效的JSON，无法保存')
+    }
+  }
+}
+
+// 保存右侧编辑器内容
+function handleSaveRightFile() {
+  if (!isUTools.value || !rightEditor) {
+    console.error('此功能仅在uTools环境中可用')
+    return
+  }
+  
+  let filePath = rightFilePath.value
+  
+  if (!filePath) {
+    const result = window.selectFile({
+      title: '保存JSON文件',
+      filters: [{ name: 'JSON文件', extensions: ['json'] }],
+      properties: ['saveFile']
+    })
+    
+    if (result.success) {
+      filePath = result.filePath
+      rightFilePath.value = filePath
+    } else {
+      return
+    }
+  }
+  
+  try {
+    const content = rightEditor.getValue()
+    // 检查是否是有效的JSON
+    JSON.parse(content)
+    
+    const saveResult = window.saveJSONFile(filePath, content)
+    if (saveResult.success) {
+      // 直接调用uTools的通知API
+      if (window.utools) {
+        window.utools.showNotification('文件已保存', '保存成功')
+      } else if (window.showNotification) {
+        window.showNotification('保存成功', '文件已保存')
+      }
+    } else {
+      if (window.utools) {
+        window.utools.showNotification('保存文件失败: ' + saveResult.error, '错误')
+      } else if (window.showNotification) {
+        window.showNotification('错误', '保存文件失败: ' + saveResult.error)
+      }
+    }
+  } catch (e) {
+    if (window.utools) {
+      window.utools.showNotification('内容不是有效的JSON，无法保存', '错误')
+    } else if (window.showNotification) {
+      window.showNotification('错误', '内容不是有效的JSON，无法保存')
+    }
+  }
+}
+
 function handleFormat() {
   try {
     if (isCompareMode.value) {
       if (leftEditor) {
         const leftContent = JSON.parse(leftEditor.getValue())
         leftEditor.setValue(formatJSON(leftContent))
+        fileChanged.value = true
       }
       if (rightEditor) {
         const rightContent = JSON.parse(rightEditor.getValue())
@@ -713,10 +928,21 @@ function handleFormat() {
       if (leftEditor) {
         const content = JSON.parse(leftEditor.getValue())
         leftEditor.setValue(formatJSON(content))
+        fileChanged.value = true
       }
+    }
+    if (window.utools) {
+      window.utools.showNotification('JSON已格式化', '成功')
+    } else if (window.showNotification) {
+      window.showNotification('成功', 'JSON已格式化')
     }
   } catch (e) {
     console.error('Invalid JSON:', e)
+    if (window.utools) {
+      window.utools.showNotification('无效的JSON格式', '错误')
+    } else if (window.showNotification) {
+      window.showNotification('错误', '无效的JSON格式')
+    }
   }
 }
 
@@ -727,6 +953,7 @@ function handleSort() {
         const leftContent = JSON.parse(leftEditor.getValue())
         const sortedLeft = sortJSON(leftContent)
         leftEditor.setValue(formatJSON(sortedLeft))
+        fileChanged.value = true
       }
       if (rightEditor) {
         const rightContent = JSON.parse(rightEditor.getValue())
@@ -738,10 +965,59 @@ function handleSort() {
         const content = JSON.parse(leftEditor.getValue())
         const sorted = sortJSON(content)
         leftEditor.setValue(formatJSON(sorted))
+        fileChanged.value = true
       }
+    }
+    if (window.utools) {
+      window.utools.showNotification('JSON已排序', '成功')
+    } else if (window.showNotification) {
+      window.showNotification('成功', 'JSON已排序')
     }
   } catch (e) {
     console.error('Invalid JSON:', e)
+    if (window.utools) {
+      window.utools.showNotification('无效的JSON格式', '错误')
+    } else if (window.showNotification) {
+      window.showNotification('错误', '无效的JSON格式')
+    }
+  }
+}
+
+function handleCopy(side) {
+  if (!isUTools.value) {
+    console.error('此功能仅在uTools环境中可用')
+    return
+  }
+  
+  try {
+    let content = ''
+    if (side === 'left' && leftEditor) {
+      content = leftEditor.getValue()
+    } else if (side === 'right' && rightEditor) {
+      content = rightEditor.getValue()
+    }
+    
+    if (content) {
+      if (window.copyToClipboard) {
+        window.copyToClipboard(content)
+        // 通知在preload.js的copyToClipboard函数中已处理
+      } else if (window.utools) {
+        window.utools.copyText(content)
+        window.utools.showNotification('内容已复制到剪贴板', '复制成功')
+      } else {
+        // 浏览器环境的备用方法
+        navigator.clipboard.writeText(content).then(() => {
+          console.log('复制成功')
+        })
+      }
+    }
+  } catch (e) {
+    console.error('复制失败:', e)
+    if (window.utools) {
+      window.utools.showNotification('复制失败', '错误')
+    } else if (window.showNotification) {
+      window.showNotification('错误', '复制失败')
+    }
   }
 }
 
@@ -942,7 +1218,25 @@ function toggleCompareMode() {
 }
 
 onMounted(() => {
+  if (isUTools.value) {
+    window.setWindowSize(1000, 700)
+  }
+  
   initializeMonaco()
+  
+  // 监听uTools窗口事件
+  if (window.utools) {
+    window.utools.onPluginEnter(({ code, type, payload }) => {
+      console.log('Plugin entered with code:', code)
+    })
+    
+    window.utools.onPluginOut(() => {
+      // 插件被关闭时的处理
+      if (fileChanged.value && leftFilePath.value) {
+        // 可以在这里提示用户保存文件
+      }
+    })
+  }
 })
 
 onBeforeUnmount(() => {
@@ -960,15 +1254,39 @@ onBeforeUnmount(() => {
     <div class="toolbar">
       <div class="tool-button" @click="handleFormat">
         <i class="mdi mdi-format-align-left"></i>
-        <span>Format</span>
+        <span>格式化</span>
       </div>
       <div class="tool-button" @click="handleSort">
         <i class="mdi mdi-sort-alphabetical-ascending"></i>
-        <span>Sort</span>
+        <span>排序</span>
       </div>
       <div class="tool-button" :class="{ active: isCompareMode }" @click="toggleCompareMode">
         <i class="mdi mdi-compare"></i>
-        <span>Compare</span>
+        <span>对比</span>
+      </div>
+      <div v-if="isUTools" class="tool-button" @click="handleLoadLeftFile">
+        <i class="mdi mdi-file-upload"></i>
+        <span>加载左侧</span>
+      </div>
+      <div v-if="isUTools && isCompareMode" class="tool-button" @click="handleLoadRightFile">
+        <i class="mdi mdi-file-upload-outline"></i>
+        <span>加载右侧</span>
+      </div>
+      <div v-if="isUTools" class="tool-button" @click="handleSaveLeftFile">
+        <i class="mdi mdi-content-save"></i>
+        <span>保存左侧</span>
+      </div>
+      <div v-if="isUTools && isCompareMode" class="tool-button" @click="handleSaveRightFile">
+        <i class="mdi mdi-content-save-outline"></i>
+        <span>保存右侧</span>
+      </div>
+      <div v-if="isUTools" class="tool-button" @click="handleCopy('left')">
+        <i class="mdi mdi-content-copy"></i>
+        <span>复制左侧</span>
+      </div>
+      <div v-if="isUTools && isCompareMode" class="tool-button" @click="handleCopy('right')">
+        <i class="mdi mdi-content-copy"></i>
+        <span>复制右侧</span>
       </div>
     </div>
     <div class="editor-container" :class="{ 'compare-mode': isCompareMode }">

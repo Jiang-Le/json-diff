@@ -1,0 +1,28 @@
+{
+  "name": "JSON Diff",
+  "version": "1.0.0",
+  "pluginName": "JSON比较工具",
+  "description": "一个高效的JSON比较和差异查看工具",
+  "author": "json-diff",
+  "main": "index.html",
+  "logo": "logo.png",
+  "preload": "preload.js",
+  "development": {
+    "main": "http://localhost:5173/"
+  },
+  "features": [
+    {
+      "code": "json-diff",
+      "explain": "比较两个JSON文件的差异",
+      "cmds": [
+        "JSON比较",
+        "json比较",
+        "JSON对比",
+        "json对比",
+        "JsonDiff",
+        "jsondiff",
+        "JSON Diff"
+      ]
+    }
+  ]
+} 
