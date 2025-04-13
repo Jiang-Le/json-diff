@@ -167,17 +167,9 @@ function highlightDifferences() {
     const leftHighlights = []
     const rightHighlights = []
     
-    // 存储差异的路径和相应的行号
-    const diffPathToLines = new Map()
-    const rightDiffPathToLines = new Map()
-    
     differences.forEach(diff => {
       const leftLines = findLineNumber(leftContent, diff.path)
       const rightLines = findLineNumber(rightContent, diff.path)
-      
-      // 存储路径到行号的映射，以便点击时导航
-      const pathKey = diff.path.join('.')
-      diffPathToLines.set(pathKey, { leftLines, rightLines, diff })
       
       if (leftLines.length > 0 && (diff.type === 'removed' || diff.type === 'modified')) {
         leftHighlights.push({
@@ -218,9 +210,6 @@ function highlightDifferences() {
     
     leftDecorations.value = leftEditor.deltaDecorations([], leftHighlights)
     rightDecorations.value = rightEditor.deltaDecorations([], rightHighlights)
-    
-    // 添加点击事件，点击一侧的差异会跳转到另一侧
-    setupDiffNavigationEvents(diffPathToLines)
     
   } catch (error) {
     console.error('Error parsing JSON:', error)
@@ -267,47 +256,6 @@ function toggleCompareMode() {
     if (rightEditor) {
       rightEditor.dispose()
       rightEditor = null
-    }
-  }
-}
-
-// 设置差异导航点击事件
-function setupDiffNavigationEvents(diffPathToLines) {
-  // 移除旧的事件处理器
-  leftEditor.onMouseDown(null)
-  rightEditor.onMouseDown(null)
-  
-  // 添加点击差异区域时的导航功能
-  leftEditor.onMouseDown((e) => {
-    handleEditorClick(e, leftEditor, rightEditor, diffPathToLines)
-  })
-  
-  rightEditor.onMouseDown((e) => {
-    handleEditorClick(e, rightEditor, leftEditor, diffPathToLines)
-  })
-}
-
-// 处理编辑器中差异区域的点击
-function handleEditorClick(e, sourceEditor, targetEditor, diffPathToLines) {
-  if (!e.target || !e.target.position) return
-  
-  const lineNumber = e.target.position.lineNumber
-  
-  // 查找点击的行是否属于某个差异
-  for (const [pathKey, { leftLines, rightLines, diff }] of diffPathToLines.entries()) {
-    const isLeftEditor = sourceEditor === leftEditor
-    const sourceLines = isLeftEditor ? leftLines : rightLines
-    const targetLines = isLeftEditor ? rightLines : leftLines
-    
-    // 检查点击的行是否在差异范围内
-    if (sourceLines.includes(lineNumber) || (sourceLines.length > 0 && lineNumber >= sourceLines[0] && lineNumber <= sourceLines[sourceLines.length - 1])) {
-      // 如果对应的差异在另一侧存在，则跳转到那里
-      if (targetLines.length > 0) {
-        targetEditor.revealLineInCenter(targetLines[0])
-        targetEditor.setPosition({ lineNumber: targetLines[0], column: 1 })
-        targetEditor.focus()
-      }
-      break
     }
   }
 }
@@ -437,17 +385,14 @@ html, body {
 /* 差异高亮样式 */
 .removed-line {
   background-color: rgba(255, 0, 0, 0.1);
-  cursor: pointer;
 }
 
 .added-line {
   background-color: rgba(0, 255, 0, 0.1);
-  cursor: pointer;
 }
 
 .modified-line {
   background-color: rgba(255, 165, 0, 0.1);
-  cursor: pointer;
 }
 
 .removed-glyph {
