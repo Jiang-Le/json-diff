@@ -677,13 +677,13 @@ html, body {
 }
 
 .toolbar {
-  width: 80px;
+  width: 65px;
   background-color: #2c3e50;
-  padding: 1rem 0;
+  padding: 0.5rem 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
@@ -693,7 +693,7 @@ html, body {
   align-items: center;
   color: white;
   cursor: pointer;
-  padding: 0.5rem;
+  padding: 0.3rem;
   width: 100%;
   transition: background-color 0.3s;
 }
@@ -703,12 +703,12 @@ html, body {
 }
 
 .tool-button i {
-  font-size: 1.5rem;
-  margin-bottom: 0.25rem;
+  font-size: 1.2rem;
+  margin-bottom: 0.15rem;
 }
 
 .tool-button span {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
 }
 
 .editor-container {
