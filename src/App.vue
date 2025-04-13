@@ -12,6 +12,8 @@ const rightEditorContainer = ref(null)
 let leftEditor = null
 let rightEditor = null
 let monaco = null
+const leftDecorations = ref([])
+const rightDecorations = ref([])
 
 const leftContent = ref({
   name: "JSON Diff Tool",
@@ -94,7 +96,8 @@ async function initializeMonaco() {
     tabSize: 2,
     renderValidationDecorations: 'on',
     formatOnPaste: true,
-    formatOnType: true
+    formatOnType: true,
+    glyphMargin: true  // 启用装订线，以显示差异标记
   }
 
   // 创建左侧编辑器
@@ -146,10 +149,10 @@ function initializeRightEditor() {
 }
 
 function highlightDifferences() {
-  if (!leftEditor.value || !rightEditor.value) return
+  if (!leftEditor || !rightEditor) return
   
-  const leftContent = leftEditor.value.getValue()
-  const rightContent = rightEditor.value.getValue()
+  const leftContent = leftEditor.getValue()
+  const rightContent = rightEditor.getValue()
   
   try {
     const leftJson = JSON.parse(leftContent)
@@ -158,17 +161,25 @@ function highlightDifferences() {
     const differences = compareJSON(leftJson, rightJson)
     
     // Clear previous decorations
-    leftDecorations.value = leftEditor.value.deltaDecorations(leftDecorations.value, [])
-    rightDecorations.value = rightEditor.value.deltaDecorations(rightDecorations.value, [])
+    leftDecorations.value = leftEditor.deltaDecorations(leftDecorations.value, [])
+    rightDecorations.value = rightEditor.deltaDecorations(rightDecorations.value, [])
     
     const leftHighlights = []
     const rightHighlights = []
+    
+    // 存储差异的路径和相应的行号
+    const diffPathToLines = new Map()
+    const rightDiffPathToLines = new Map()
     
     differences.forEach(diff => {
       const leftLines = findLineNumber(leftContent, diff.path)
       const rightLines = findLineNumber(rightContent, diff.path)
       
-      if (diff.type === 'removed' || diff.type === 'modified') {
+      // 存储路径到行号的映射，以便点击时导航
+      const pathKey = diff.path.join('.')
+      diffPathToLines.set(pathKey, { leftLines, rightLines, diff })
+      
+      if (leftLines.length > 0 && (diff.type === 'removed' || diff.type === 'modified')) {
         leftHighlights.push({
           range: new monaco.Range(
             leftLines[0],
@@ -179,12 +190,14 @@ function highlightDifferences() {
           options: {
             isWholeLine: true,
             className: diff.type === 'removed' ? 'removed-line' : 'modified-line',
-            glyphMarginClassName: diff.type === 'removed' ? 'removed-glyph' : 'modified-glyph'
+            glyphMarginClassName: diff.type === 'removed' ? 'removed-glyph' : 'modified-glyph',
+            hoverMessage: { value: getHoverMessage(diff, 'left') },
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
           }
         })
       }
       
-      if (diff.type === 'added' || diff.type === 'modified') {
+      if (rightLines.length > 0 && (diff.type === 'added' || diff.type === 'modified')) {
         rightHighlights.push({
           range: new monaco.Range(
             rightLines[0],
@@ -195,14 +208,19 @@ function highlightDifferences() {
           options: {
             isWholeLine: true,
             className: diff.type === 'added' ? 'added-line' : 'modified-line',
-            glyphMarginClassName: diff.type === 'added' ? 'added-glyph' : 'modified-glyph'
+            glyphMarginClassName: diff.type === 'added' ? 'added-glyph' : 'modified-glyph',
+            hoverMessage: { value: getHoverMessage(diff, 'right') },
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
           }
         })
       }
     })
     
-    leftDecorations.value = leftEditor.value.deltaDecorations([], leftHighlights)
-    rightDecorations.value = rightEditor.value.deltaDecorations([], rightHighlights)
+    leftDecorations.value = leftEditor.deltaDecorations([], leftHighlights)
+    rightDecorations.value = rightEditor.deltaDecorations([], rightHighlights)
+    
+    // 添加点击事件，点击一侧的差异会跳转到另一侧
+    setupDiffNavigationEvents(diffPathToLines)
     
   } catch (error) {
     console.error('Error parsing JSON:', error)
@@ -217,15 +235,17 @@ function getHoverMessage(diff, side) {
     return JSON.stringify(value)
   }
 
+  const pathStr = diff.path.join('.')
+
   switch (diff.type) {
     case 'added':
-      return `新增: ${formatValue(diff.value)}`
+      return `新增属性 '${pathStr}': ${formatValue(diff.value)}`
     case 'removed':
-      return `删除: ${formatValue(diff.value)}`
+      return `删除属性 '${pathStr}': ${formatValue(diff.value)}`
     case 'modified':
       return side === 'left' 
-        ? `原始值: ${formatValue(diff.oldValue)}`
-        : `修改为: ${formatValue(diff.newValue)}`
+        ? `属性 '${pathStr}' 原始值: ${formatValue(diff.oldValue)}`
+        : `属性 '${pathStr}' 修改为: ${formatValue(diff.newValue)}`
     default:
       return ''
   }
@@ -247,6 +267,47 @@ function toggleCompareMode() {
     if (rightEditor) {
       rightEditor.dispose()
       rightEditor = null
+    }
+  }
+}
+
+// 设置差异导航点击事件
+function setupDiffNavigationEvents(diffPathToLines) {
+  // 移除旧的事件处理器
+  leftEditor.onMouseDown(null)
+  rightEditor.onMouseDown(null)
+  
+  // 添加点击差异区域时的导航功能
+  leftEditor.onMouseDown((e) => {
+    handleEditorClick(e, leftEditor, rightEditor, diffPathToLines)
+  })
+  
+  rightEditor.onMouseDown((e) => {
+    handleEditorClick(e, rightEditor, leftEditor, diffPathToLines)
+  })
+}
+
+// 处理编辑器中差异区域的点击
+function handleEditorClick(e, sourceEditor, targetEditor, diffPathToLines) {
+  if (!e.target || !e.target.position) return
+  
+  const lineNumber = e.target.position.lineNumber
+  
+  // 查找点击的行是否属于某个差异
+  for (const [pathKey, { leftLines, rightLines, diff }] of diffPathToLines.entries()) {
+    const isLeftEditor = sourceEditor === leftEditor
+    const sourceLines = isLeftEditor ? leftLines : rightLines
+    const targetLines = isLeftEditor ? rightLines : leftLines
+    
+    // 检查点击的行是否在差异范围内
+    if (sourceLines.includes(lineNumber) || (sourceLines.length > 0 && lineNumber >= sourceLines[0] && lineNumber <= sourceLines[sourceLines.length - 1])) {
+      // 如果对应的差异在另一侧存在，则跳转到那里
+      if (targetLines.length > 0) {
+        targetEditor.revealLineInCenter(targetLines[0])
+        targetEditor.setPosition({ lineNumber: targetLines[0], column: 1 })
+        targetEditor.focus()
+      }
+      break
     }
   }
 }
@@ -359,25 +420,52 @@ html, body {
 
 .editor-container {
   flex: 1;
-  padding: 1rem;
-  background-color: #f8f9fa;
-  overflow: hidden;
   display: flex;
-  min-width: 0;
-  gap: 1rem;
-}
-
-.editor-container.compare-mode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
 }
 
 .editor-component {
-  flex: 1;
   height: 100%;
-  overflow: hidden;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  width: 100%;
+  transition: width 0.3s;
+}
+
+.compare-mode .editor-component {
+  width: 50%;
+}
+
+/* 差异高亮样式 */
+.removed-line {
+  background-color: rgba(255, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.added-line {
+  background-color: rgba(0, 255, 0, 0.1);
+  cursor: pointer;
+}
+
+.modified-line {
+  background-color: rgba(255, 165, 0, 0.1);
+  cursor: pointer;
+}
+
+.removed-glyph {
+  background-color: #f5485d;
+  width: 5px !important;
+  margin-left: 3px;
+}
+
+.added-glyph {
+  background-color: #48d75f;
+  width: 5px !important;
+  margin-left: 3px;
+}
+
+.modified-glyph {
+  background-color: #ffa500;
+  width: 5px !important;
+  margin-left: 3px;
 }
 
 /* Monaco Editor 自定义样式 */
@@ -403,21 +491,6 @@ html, body {
 }
 
 .line-decoration {
-  width: 5px !important;
-}
-
-.glyph-modified {
-  background-color: #ffd700;
-  width: 5px !important;
-}
-
-.glyph-insert {
-  background-color: #9bb955;
-  width: 5px !important;
-}
-
-.glyph-delete {
-  background-color: #ff6464;
   width: 5px !important;
 }
 
