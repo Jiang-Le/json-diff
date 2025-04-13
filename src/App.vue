@@ -1075,6 +1075,7 @@ function setupScrollSync() {
   
   leftEditor.onDidScrollChange((e) => {
     if (isSyncing) return
+    if (!rightEditor) return
     
     isSyncing = true
     
