@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import VueDevTools from 'vite-plugin-vue-devtools'
+import monacoEditorPlugin from 'vite-plugin-monaco-editor'
 import { resolve } from 'path'
 import { copyFileSync, existsSync, mkdirSync } from 'fs'
 
@@ -10,6 +11,11 @@ export default defineConfig({
   plugins: [
     vue(),
     VueDevTools(),
+    monacoEditorPlugin({
+      languageWorkers: ['json'],
+      customWorkers: [],
+      customDistPath: (root) => resolve(root, 'dist/assets/monaco-editor')
+    }),
     {
       name: 'utools-plugin-copy-files',
       closeBundle() {
@@ -48,16 +54,15 @@ export default defineConfig({
     // 优化打包配置
     rollupOptions: {
       output: {
+        // 移除手动分块，由 monaco-editor 插件处理
         manualChunks: {
-          // 将 monaco 编辑器拆分成单独的 chunk，提高加载效率
-          'monaco-editor': ['monaco-editor']
+          // 保留其他手动分块(如有)，但移除 monaco-editor 的配置
         }
       }
     },
     // 减小 chunk 大小阈值，优化加载性能
     chunkSizeWarningLimit: 5000
   },
-  optimizeDeps: {
-    include: ['monaco-editor']
-  }
+  // 移除 optimizeDeps 配置，让插件处理
+  optimizeDeps: {}
 })
