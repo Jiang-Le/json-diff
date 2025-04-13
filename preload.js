@@ -5,12 +5,12 @@ const path = require('path');
 console.log('preload.js 加载中...');
 console.log('uTools 对象:', utools ? '存在' : '不存在');
 
-// 直接调用一次通知测试
+// 移除系统通知测试
 try {
-  utools.showNotification('preload.js 已加载', 'JSON比较工具');
-  console.log('测试通知已发送');
+  // 记录启动日志
+  console.log('preload.js 已加载成功');
 } catch (e) {
-  console.error('测试通知失败:', e);
+  console.error('preload.js 加载出错:', e);
 }
 
 // 读取JSON文件
@@ -33,14 +33,7 @@ window.saveJSONFile = (filePath, content) => {
     fs.writeFileSync(filePath, content, 'utf8');
     console.log('文件保存成功');
     
-    // 直接调用通知
-    try {
-      utools.showNotification('文件已保存成功', 'JSON比较工具');
-      console.log('保存通知发送成功');
-    } catch (err) {
-      console.error('保存通知发送失败:', err);
-    }
-    
+    // 移除系统通知调用，让Vue应用处理通知
     return { success: true };
   } catch (error) {
     console.error('文件保存失败:', error);
@@ -72,51 +65,11 @@ window.copyToClipboard = (text) => {
     utools.copyText(text);
     console.log('复制成功');
     
-    // 直接调用通知API
-    try {
-      utools.showNotification('内容已复制到剪贴板', 'JSON比较工具');
-      console.log('复制通知发送成功');
-    } catch (err) {
-      console.error('复制通知发送失败:', err);
-    }
-    
+    // 移除系统通知调用，让Vue应用处理通知
     return { success: true };
   } catch (error) {
     console.error('复制失败:', error);
     return { success: false, error: error.message };
-  }
-};
-
-// 重新封装通知功能，直接使用uTools API
-window.showNotification = (message, title = 'JSON比较工具') => {
-  console.log('发送通知:', title, message);
-  try {
-    // 直接调用uTools API
-    utools.showNotification(message, title);
-    console.log('通知发送成功');
-    return true;
-  } catch (error) {
-    console.error('通知发送失败:', error);
-    // 尝试第二种方法
-    try {
-      require('electron').remote.dialog.showMessageBox({
-        type: 'info',
-        title: title,
-        message: message
-      });
-      console.log('通过Electron对话框显示通知');
-      return true;
-    } catch (e) {
-      console.error('所有通知方法都失败:', e);
-      return false;
-    }
-  }
-};
-
-// 为主进程导出通知方法，方便直接调用
-window.utils = {
-  showNotification: (message, title) => {
-    return window.showNotification(message, title);
   }
 };
 

@@ -6,6 +6,29 @@ import { sortJSON } from './utils/sortJSON'
 import { compareJSON } from './utils/compareJSON'
 import { findLineNumber, buildLineNumberMap, pathToString } from './utils/findLineNumber'
 
+// 创建一个简单的事件总线
+if (typeof window.eventHub === 'undefined') {
+  window.eventHub = {
+    events: {},
+    emit(event, data) {
+      if (this.events[event]) {
+        this.events[event].forEach(callback => callback(data))
+      }
+    },
+    on(event, callback) {
+      if (!this.events[event]) {
+        this.events[event] = []
+      }
+      this.events[event].push(callback)
+    },
+    off(event, callback) {
+      if (this.events[event]) {
+        this.events[event] = this.events[event].filter(cb => cb !== callback)
+      }
+    }
+  }
+}
+
 // 检查是否在uTools环境中运行
 const isUTools = ref(typeof window.utools !== 'undefined')
 
@@ -20,6 +43,37 @@ const rightDecorations = ref([])
 const leftFilePath = ref('')
 const rightFilePath = ref('')
 const fileChanged = ref(false)
+
+// Toast 通知系统
+const toast = ref({
+  visible: false,
+  message: '',
+  type: 'info', // info, success, error
+  timeout: null
+})
+
+// 显示 Toast 通知
+function showToast(message, type = 'info', duration = 3000) {
+  // 如果已有通知，先清除计时器
+  if (toast.value.timeout) {
+    clearTimeout(toast.value.timeout)
+  }
+  
+  // 更新并显示通知
+  toast.value.message = message
+  toast.value.type = type
+  toast.value.visible = true
+  
+  // 设置自动关闭
+  toast.value.timeout = setTimeout(() => {
+    hideToast()
+  }, duration)
+}
+
+// 隐藏 Toast 通知
+function hideToast() {
+  toast.value.visible = false
+}
 
 const leftContent = ref({
   "config": {
@@ -731,24 +785,12 @@ function handleLoadLeftFile() {
             highlightDifferences()
           }
         }
-        if (window.utools) {
-          window.utools.showNotification('已加载左侧JSON文件', '成功')
-        } else if (window.showNotification) {
-          window.showNotification('成功', '已加载左侧JSON文件')
-        }
+        showToast('已加载左侧JSON文件', 'success')
       } catch (e) {
-        if (window.utools) {
-          window.utools.showNotification('文件内容不是有效的JSON', '错误')
-        } else if (window.showNotification) {
-          window.showNotification('错误', '文件内容不是有效的JSON')
-        }
+        showToast('文件内容不是有效的JSON', 'error')
       }
     } else {
-      if (window.utools) {
-        window.utools.showNotification('无法读取文件: ' + fileResult.error, '错误')
-      } else if (window.showNotification) {
-        window.showNotification('错误', '无法读取文件: ' + fileResult.error)
-      }
+      showToast('无法读取文件: ' + fileResult.error, 'error')
     }
   }
 }
@@ -783,24 +825,12 @@ function handleLoadRightFile() {
             highlightDifferences()
           }
         }
-        if (window.utools) {
-          window.utools.showNotification('已加载右侧JSON文件', '成功')
-        } else if (window.showNotification) {
-          window.showNotification('成功', '已加载右侧JSON文件')
-        }
+        showToast('已加载右侧JSON文件', 'success')
       } catch (e) {
-        if (window.utools) {
-          window.utools.showNotification('文件内容不是有效的JSON', '错误')
-        } else if (window.showNotification) {
-          window.showNotification('错误', '文件内容不是有效的JSON')
-        }
+        showToast('文件内容不是有效的JSON', 'error')
       }
     } else {
-      if (window.utools) {
-        window.utools.showNotification('无法读取文件: ' + fileResult.error, '错误')
-      } else if (window.showNotification) {
-        window.showNotification('错误', '无法读取文件: ' + fileResult.error)
-      }
+      showToast('无法读取文件: ' + fileResult.error, 'error')
     }
   }
 }
@@ -837,25 +867,12 @@ function handleSaveLeftFile() {
     const saveResult = window.saveJSONFile(filePath, content)
     if (saveResult.success) {
       fileChanged.value = false
-      // 直接调用uTools的通知API
-      if (window.utools) {
-        window.utools.showNotification('文件已保存', '保存成功')
-      } else if (window.showNotification) {
-        window.showNotification('保存成功', '文件已保存')
-      }
+      showToast('文件已保存', 'success')
     } else {
-      if (window.utools) {
-        window.utools.showNotification('保存文件失败: ' + saveResult.error, '错误')
-      } else if (window.showNotification) {
-        window.showNotification('错误', '保存文件失败: ' + saveResult.error)
-      }
+      showToast('保存文件失败: ' + saveResult.error, 'error')
     }
   } catch (e) {
-    if (window.utools) {
-      window.utools.showNotification('内容不是有效的JSON，无法保存', '错误')
-    } else if (window.showNotification) {
-      window.showNotification('错误', '内容不是有效的JSON，无法保存')
-    }
+    showToast('内容不是有效的JSON，无法保存', 'error')
   }
 }
 
@@ -890,25 +907,12 @@ function handleSaveRightFile() {
     
     const saveResult = window.saveJSONFile(filePath, content)
     if (saveResult.success) {
-      // 直接调用uTools的通知API
-      if (window.utools) {
-        window.utools.showNotification('文件已保存', '保存成功')
-      } else if (window.showNotification) {
-        window.showNotification('保存成功', '文件已保存')
-      }
+      showToast('文件已保存', 'success')
     } else {
-      if (window.utools) {
-        window.utools.showNotification('保存文件失败: ' + saveResult.error, '错误')
-      } else if (window.showNotification) {
-        window.showNotification('错误', '保存文件失败: ' + saveResult.error)
-      }
+      showToast('保存文件失败: ' + saveResult.error, 'error')
     }
   } catch (e) {
-    if (window.utools) {
-      window.utools.showNotification('内容不是有效的JSON，无法保存', '错误')
-    } else if (window.showNotification) {
-      window.showNotification('错误', '内容不是有效的JSON，无法保存')
-    }
+    showToast('内容不是有效的JSON，无法保存', 'error')
   }
 }
 
@@ -931,18 +935,10 @@ function handleFormat() {
         fileChanged.value = true
       }
     }
-    if (window.utools) {
-      window.utools.showNotification('JSON已格式化', '成功')
-    } else if (window.showNotification) {
-      window.showNotification('成功', 'JSON已格式化')
-    }
+    showToast('JSON已格式化', 'success')
   } catch (e) {
     console.error('Invalid JSON:', e)
-    if (window.utools) {
-      window.utools.showNotification('无效的JSON格式', '错误')
-    } else if (window.showNotification) {
-      window.showNotification('错误', '无效的JSON格式')
-    }
+    showToast('无效的JSON格式', 'error')
   }
 }
 
@@ -968,18 +964,10 @@ function handleSort() {
         fileChanged.value = true
       }
     }
-    if (window.utools) {
-      window.utools.showNotification('JSON已排序', '成功')
-    } else if (window.showNotification) {
-      window.showNotification('成功', 'JSON已排序')
-    }
+    showToast('JSON已排序', 'success')
   } catch (e) {
     console.error('Invalid JSON:', e)
-    if (window.utools) {
-      window.utools.showNotification('无效的JSON格式', '错误')
-    } else if (window.showNotification) {
-      window.showNotification('错误', '无效的JSON格式')
-    }
+    showToast('无效的JSON格式', 'error')
   }
 }
 
@@ -1000,24 +988,20 @@ function handleCopy(side) {
     if (content) {
       if (window.copyToClipboard) {
         window.copyToClipboard(content)
-        // 通知在preload.js的copyToClipboard函数中已处理
+        showToast('内容已复制到剪贴板', 'success')
       } else if (window.utools) {
         window.utools.copyText(content)
-        window.utools.showNotification('内容已复制到剪贴板', '复制成功')
+        showToast('内容已复制到剪贴板', 'success')
       } else {
         // 浏览器环境的备用方法
         navigator.clipboard.writeText(content).then(() => {
-          console.log('复制成功')
+          showToast('内容已复制到剪贴板', 'success')
         })
       }
     }
   } catch (e) {
     console.error('复制失败:', e)
-    if (window.utools) {
-      window.utools.showNotification('复制失败', '错误')
-    } else if (window.showNotification) {
-      window.showNotification('错误', '复制失败')
-    }
+    showToast('复制失败', 'error')
   }
 }
 
@@ -1224,6 +1208,11 @@ onMounted(() => {
   
   initializeMonaco()
   
+  // 监听事件总线中的toast事件
+  window.eventHub.on('show-toast', (data) => {
+    showToast(data.message, data.type)
+  })
+  
   // 监听uTools窗口事件
   if (window.utools) {
     window.utools.onPluginEnter(({ code, type, payload }) => {
@@ -1240,6 +1229,9 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  // 清理事件监听
+  window.eventHub.off('show-toast')
+  
   if (leftEditor) {
     leftEditor.dispose()
   }
@@ -1293,6 +1285,23 @@ onBeforeUnmount(() => {
       <div ref="leftEditorContainer" class="editor-component"></div>
       <div v-show="isCompareMode" ref="rightEditorContainer" class="editor-component"></div>
     </div>
+    
+    <!-- Toast 通知组件 -->
+    <transition name="toast-fade">
+      <div v-if="toast.visible" class="toast-container" :class="toast.type">
+        <div class="toast-icon">
+          <i class="mdi" :class="{
+            'mdi-check-circle': toast.type === 'success',
+            'mdi-alert-circle': toast.type === 'error',
+            'mdi-information': toast.type === 'info'
+          }"></i>
+        </div>
+        <div class="toast-message">{{ toast.message }}</div>
+        <div class="toast-close" @click="hideToast">
+          <i class="mdi mdi-close"></i>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -1378,6 +1387,68 @@ html, body {
 
 .compare-mode .editor-component {
   width: 50%;
+}
+
+/* Toast 样式 */
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 250px;
+  max-width: 600px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  color: white;
+}
+
+.toast-container.success {
+  background-color: #4caf50;
+}
+
+.toast-container.error {
+  background-color: #f44336;
+}
+
+.toast-container.info {
+  background-color: #2196f3;
+}
+
+.toast-icon {
+  margin-right: 12px;
+  font-size: 1.4rem;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.toast-close {
+  margin-left: 12px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+/* Toast 动画 */
+.toast-fade-enter-active,
+.toast-fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.toast-fade-enter-from,
+.toast-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
 }
 
 .removed-line {
