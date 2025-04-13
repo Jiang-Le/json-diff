@@ -382,7 +382,6 @@ async function initializeMonaco() {
         }
       });
       
-      showToast('编辑器加载成功', 'success');
       return true;
     } catch (error) {
       console.error(`Failed to initialize Monaco editor (attempt ${retryCount+1}/${maxRetries}):`, error);
