@@ -342,90 +342,86 @@ function handleCopy(side) {
   }
 }
 
-async function initializeMonaco() {
-  let retryCount = 0;
-  const maxRetries = 3;
-  
-  async function tryInitialize() {
-    try {
-      // Use our custom Monaco initialization
-      monaco = await initMonaco();
-      
-      const editorOptions = {
-        language: 'json',
-        theme: 'vs',
-        automaticLayout: true,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        fontSize: 14,
-        tabSize: 2,
-        renderValidationDecorations: 'on',
-        formatOnPaste: true,
-        formatOnType: true,
-        glyphMargin: true
-      };
+// 提取公共编辑器配置
+const defaultEditorOptions = {
+  language: 'json',
+  theme: 'vs',
+  automaticLayout: true,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontSize: 14,
+  tabSize: 2,
+  renderValidationDecorations: 'on',
+  formatOnPaste: true,
+  formatOnType: true,
+  glyphMargin: true
+}
 
-      leftEditor = monaco.editor.create(leftEditorContainer.value, {
-        ...editorOptions,
-        value: formatJSON(leftContent.value),
-        readOnly: false
-      });
-
-      leftEditor.onDidChangeModelContent(() => {
-        try {
-          fileChanged.value = true;
-          if (isCompareMode.value && rightEditor) {
-            highlightDifferences();
-          }
-        } catch (e) {
-          console.error('Invalid JSON in left editor');
-        }
-      });
-      
-      return true;
-    } catch (error) {
-      console.error(`Failed to initialize Monaco editor (attempt ${retryCount+1}/${maxRetries}):`, error);
-      return false;
-    }
-  }
+// 创建编辑器的通用函数
+function createEditor(container, options = {}) {
+  if (!container || !monaco) return null
   
-  while (retryCount < maxRetries) {
-    const success = await tryInitialize();
-    if (success) return;
+  try {
+    const editor = monaco.editor.create(container, {
+      ...defaultEditorOptions,
+      ...options
+    })
     
-    retryCount++;
-    if (retryCount < maxRetries) {
-      showToast(`编辑器加载失败，正在重试... (${retryCount}/${maxRetries})`, 'info');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒再重试
-    } else {
-      showToast('编辑器加载失败，请重新加载或检查网络连接', 'error');
+    return editor
+  } catch (error) {
+    console.error('Failed to create editor:', error)
+    showToast('编辑器创建失败', 'error')
+    return null
+  }
+}
+
+async function initializeMonaco() {
+  try {
+    monaco = await initMonaco()
+    
+    // 初始化左侧编辑器
+    leftEditor = createEditor(leftEditorContainer.value, {
+      value: formatJSON(leftContent.value),
+      readOnly: false
+    })
+    
+    if (!leftEditor) {
+      throw new Error('Failed to create left editor')
     }
+    
+    // 设置左侧编辑器的内容变化监听
+    leftEditor.onDidChangeModelContent(() => {
+      try {
+        fileChanged.value = true
+        if (isCompareMode.value && rightEditor) {
+          highlightDifferences()
+        }
+      } catch (e) {
+        console.error('Invalid JSON in left editor:', e)
+      }
+    })
+  } catch (error) {
+    console.error('Monaco initialization failed:', error)
+    showToast('编辑器加载失败，请刷新页面重试', 'error')
   }
 }
 
 function initializeRightEditor() {
-  if (!rightEditorContainer.value || !monaco) return
-
-  rightEditor = monaco.editor.create(rightEditorContainer.value, {
-    language: 'json',
-    theme: 'vs',
-    automaticLayout: true,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    fontSize: 14,
-    tabSize: 2,
-    renderValidationDecorations: 'on',
-    formatOnPaste: true,
-    formatOnType: true,
+  if (!isCompareMode.value || !rightEditorContainer.value) return
+  
+  rightEditor = createEditor(rightEditorContainer.value, {
     value: formatJSON(rightContent.value),
     readOnly: false
   })
-
+  
+  if (!rightEditor) return
+  
+  // 设置右侧编辑器的内容变化监听
   rightEditor.onDidChangeModelContent(() => {
     try {
       highlightDifferences()
     } catch (e) {
-      console.error('Invalid JSON in right editor')
+      console.error('Invalid JSON in right editor:', e)
     }
   })
   
