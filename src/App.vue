@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import loader from '@monaco-editor/loader'
+import { initMonaco } from './utils/monacoConfig'
 import '@mdi/font/css/materialdesignicons.css'
 import { sortJSON } from './utils/sortJSON'
 import { compareJSON } from './utils/compareJSON'
@@ -343,37 +343,65 @@ function handleCopy(side) {
 }
 
 async function initializeMonaco() {
-  monaco = await loader.init()
+  let retryCount = 0;
+  const maxRetries = 3;
   
-  const editorOptions = {
-    language: 'json',
-    theme: 'vs',
-    automaticLayout: true,
-    minimap: { enabled: false },
-    scrollBeyondLastLine: false,
-    fontSize: 14,
-    tabSize: 2,
-    renderValidationDecorations: 'on',
-    formatOnPaste: true,
-    formatOnType: true,
-    glyphMargin: true
-  }
-
-  leftEditor = monaco.editor.create(leftEditorContainer.value, {
-    ...editorOptions,
-    value: formatJSON(leftContent.value),
-    readOnly: false
-  })
-
-  leftEditor.onDidChangeModelContent(() => {
+  async function tryInitialize() {
     try {
-      if (isCompareMode.value && rightEditor) {
-        highlightDifferences()
-      }
-    } catch (e) {
-      console.error('Invalid JSON in left editor')
+      // Use our custom Monaco initialization
+      monaco = await initMonaco();
+      
+      const editorOptions = {
+        language: 'json',
+        theme: 'vs',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        scrollBeyondLastLine: false,
+        fontSize: 14,
+        tabSize: 2,
+        renderValidationDecorations: 'on',
+        formatOnPaste: true,
+        formatOnType: true,
+        glyphMargin: true
+      };
+
+      leftEditor = monaco.editor.create(leftEditorContainer.value, {
+        ...editorOptions,
+        value: formatJSON(leftContent.value),
+        readOnly: false
+      });
+
+      leftEditor.onDidChangeModelContent(() => {
+        try {
+          fileChanged.value = true;
+          if (isCompareMode.value && rightEditor) {
+            highlightDifferences();
+          }
+        } catch (e) {
+          console.error('Invalid JSON in left editor');
+        }
+      });
+      
+      showToast('编辑器加载成功', 'success');
+      return true;
+    } catch (error) {
+      console.error(`Failed to initialize Monaco editor (attempt ${retryCount+1}/${maxRetries}):`, error);
+      return false;
     }
-  })
+  }
+  
+  while (retryCount < maxRetries) {
+    const success = await tryInitialize();
+    if (success) return;
+    
+    retryCount++;
+    if (retryCount < maxRetries) {
+      showToast(`编辑器加载失败，正在重试... (${retryCount}/${maxRetries})`, 'info');
+      await new Promise(resolve => setTimeout(resolve, 1000)); // 等待1秒再重试
+    } else {
+      showToast('编辑器加载失败，请重新加载或检查网络连接', 'error');
+    }
+  }
 }
 
 function initializeRightEditor() {

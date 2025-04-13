@@ -42,6 +42,22 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
-    emptyOutDir: false // 避免清空dist目录删除已复制的插件文件
+    emptyOutDir: false, // 避免清空dist目录删除已复制的插件文件
+    // 使用相对路径
+    base: './',
+    // 优化打包配置
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // 将 monaco 编辑器拆分成单独的 chunk，提高加载效率
+          'monaco-editor': ['monaco-editor']
+        }
+      }
+    },
+    // 减小 chunk 大小阈值，优化加载性能
+    chunkSizeWarningLimit: 5000
+  },
+  optimizeDeps: {
+    include: ['monaco-editor']
   }
 })

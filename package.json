@@ -6,12 +6,13 @@
     "dev": "vite",
     "build": "vite build",
     "test": "jest",
-    "build:plugin": "vite build && node scripts/build-plugin.js",
+    "build:plugin": "vite build && node scripts/copy-monaco.js && node scripts/build-plugin.js",
     "clean": "node scripts/clean.js"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
     "@monaco-editor/loader": "^1.4.0",
+    "monaco-editor": "^0.52.2",
     "vue": "^3.4.15"
   },
   "devDependencies": {
