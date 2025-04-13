@@ -1,17 +1,4 @@
-// 检查是否在Node.js环境
-const isNodeEnvironment = typeof process !== 'undefined' && process.versions && process.versions.node;
-
-// 条件导入Node.js模块
-let fs, path;
-if (isNodeEnvironment) {
-  try {
-    fs = require('fs');
-    path = require('path');
-    console.log('Node.js 模块已加载');
-  } catch (e) {
-    console.error('无法加载Node.js模块:', e);
-  }
-}
+const fs = require("fs");
 
 // 直接在全局作用域创建一些调试函数
 console.log('preload.js 加载中...');
@@ -20,18 +7,12 @@ console.log('preload.js 加载中...');
 const isUToolsAvailable = typeof window !== 'undefined' && window.utools;
 console.log('uTools 对象:', isUToolsAvailable ? '存在' : '不存在');
 
-// 记录启动日志
-try {
-  console.log('preload.js 已加载成功');
-} catch (e) {
-  console.error('preload.js 加载出错:', e);
-}
-
 // 读取JSON文件
 window.readJSONFile = (filePath) => {
-  if (!isNodeEnvironment || !fs) {
-    console.error('无法读取文件: Node.js环境不可用');
-    return { success: false, error: 'Node.js环境不可用' };
+  if (!fs) {
+    console.log("fs object is unavailable");
+    console.error('无法读取文件: Node.js文件系统模块不可用');
+    return { success: false, error: 'Node.js文件系统模块不可用' };
   }
   
   try {
@@ -47,9 +28,9 @@ window.readJSONFile = (filePath) => {
 
 // 将JSON内容保存到文件
 window.saveJSONFile = (filePath, content) => {
-  if (!isNodeEnvironment || !fs) {
-    console.error('无法保存文件: Node.js环境不可用');
-    return { success: false, error: 'Node.js环境不可用' };
+  if (!fs) {
+    console.error('无法保存文件: Node.js文件系统模块不可用');
+    return { success: false, error: 'Node.js文件系统模块不可用' };
   }
   
   try {
