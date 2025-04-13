@@ -16,15 +16,682 @@ const leftDecorations = ref([])
 const rightDecorations = ref([])
 
 const leftContent = ref({
-  name: "JSON Diff Tool",
-  description: "A tool to compare JSON files",
-  version: "1.0.0"
+  "config": {
+    "name": "JSON Compare Demo",
+    "version": "1.0.0",
+    "description": "A comprehensive example to test JSON diff functionality",
+    "author": {
+      "name": "Test User",
+      "email": "test@example.com",
+      "url": "https://example.com"
+    },
+    "license": "MIT",
+    "isProduction": false,
+    "debug": true
+  },
+  "server": {
+    "host": "localhost",
+    "port": 3000,
+    "protocol": "http",
+    "timeout": 30000,
+    "retryCount": 3,
+    "headers": {
+      "Content-Type": "application/json",
+      "Accept": "*/*",
+      "User-Agent": "JSON-Diff-Test"
+    }
+  },
+  "database": {
+    "main": {
+      "host": "db.example.com",
+      "port": 5432,
+      "user": "admin",
+      "password": "password123",
+      "name": "maindb",
+      "options": {
+        "ssl": true,
+        "timeout": 5000,
+        "pool": {
+          "max": 20,
+          "min": 5,
+          "idle": 10000
+        }
+      }
+    },
+    "replica": {
+      "host": "replica.example.com",
+      "port": 5432,
+      "user": "reader",
+      "password": "reader123",
+      "name": "maindb-replica",
+      "options": {
+        "ssl": true,
+        "timeout": 3000,
+        "pool": {
+          "max": 10,
+          "min": 2,
+          "idle": 10000
+        }
+      }
+    }
+  },
+  "features": {
+    "authentication": {
+      "enabled": true,
+      "methods": ["local", "oauth", "ldap"],
+      "jwt": {
+        "secret": "your-secret-key",
+        "expiresIn": "1d"
+      },
+      "oauth": {
+        "google": {
+          "clientId": "google-client-id",
+          "clientSecret": "google-client-secret"
+        },
+        "github": {
+          "clientId": "github-client-id",
+          "clientSecret": "github-client-secret"
+        }
+      }
+    },
+    "logging": {
+      "enabled": true,
+      "level": "info",
+      "transports": ["console", "file"],
+      "format": "json",
+      "files": {
+        "info": "logs/info.log",
+        "error": "logs/error.log",
+        "debug": "logs/debug.log"
+      }
+    },
+    "caching": {
+      "enabled": true,
+      "driver": "redis",
+      "ttl": 3600,
+      "redis": {
+        "host": "cache.example.com",
+        "port": 6379,
+        "password": "redis-password"
+      }
+    }
+  },
+  "api": {
+    "endpoints": [
+      {
+        "path": "/users",
+        "method": "GET",
+        "auth": true,
+        "rate_limit": {
+          "max": 100,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": true,
+          "ttl": 300
+        }
+      },
+      {
+        "path": "/users/:id",
+        "method": "GET",
+        "auth": true,
+        "rate_limit": {
+          "max": 200,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": true,
+          "ttl": 60
+        }
+      },
+      {
+        "path": "/posts",
+        "method": "POST",
+        "auth": true,
+        "rate_limit": {
+          "max": 50,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": false
+        }
+      }
+    ],
+    "middlewares": [
+      "cors",
+      "helmet",
+      "body-parser",
+      "compression",
+      "rate-limiter"
+    ]
+  },
+  "tasks": [
+    {
+      "name": "data-backup",
+      "schedule": "0 0 * * *",
+      "action": "backup_database",
+      "args": {
+        "target": "s3://backups.example.com",
+        "compress": true
+      },
+      "retry": {
+        "attempts": 3,
+        "delay": 300
+      }
+    },
+    {
+      "name": "cache-flush",
+      "schedule": "0 */6 * * *",
+      "action": "flush_cache",
+      "args": {
+        "full": false
+      },
+      "retry": {
+        "attempts": 2,
+        "delay": 60
+      }
+    }
+  ],
+  "notifications": {
+    "email": {
+      "enabled": true,
+      "provider": "smtp",
+      "smtp": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": true,
+        "auth": {
+          "user": "notifications@example.com",
+          "pass": "smtp-password"
+        }
+      },
+      "templates": {
+        "welcome": "templates/email/welcome.html",
+        "password-reset": "templates/email/password-reset.html",
+        "invoice": "templates/email/invoice.html"
+      }
+    },
+    "push": {
+      "enabled": false,
+      "provider": "firebase",
+      "credentials": {
+        "projectId": "example-project-id",
+        "privateKey": "firebase-private-key"
+      }
+    }
+  },
+  "clients": {
+    "mobile": {
+      "ios": {
+        "minVersion": "1.0.0",
+        "currentVersion": "1.2.3",
+        "forceUpdate": false
+      },
+      "android": {
+        "minVersion": "1.0.0",
+        "currentVersion": "1.2.1",
+        "forceUpdate": false
+      }
+    },
+    "web": {
+      "supportedBrowsers": [
+        "chrome >= 60",
+        "firefox >= 60",
+        "safari >= 12",
+        "edge >= 15"
+      ],
+      "assets": {
+        "baseUrl": "https://cdn.example.com",
+        "cacheTime": 86400
+      }
+    }
+  },
+  "metrics": {
+    "enabled": true,
+    "provider": "prometheus",
+    "interval": 60,
+    "endpoints": {
+      "scrape": "/metrics",
+      "health": "/health"
+    },
+    "alerting": {
+      "enabled": true,
+      "thresholds": {
+        "cpu": 80,
+        "memory": 90,
+        "disk": 85,
+        "latency": 500
+      }
+    }
+  },
+  "environments": {
+    "development": {
+      "debug": true,
+      "loglevel": "debug",
+      "services": {
+        "mockEnabled": true
+      }
+    },
+    "testing": {
+      "debug": true,
+      "loglevel": "info",
+      "services": {
+        "mockEnabled": true
+      }
+    },
+    "staging": {
+      "debug": false,
+      "loglevel": "info",
+      "services": {
+        "mockEnabled": false
+      }
+    },
+    "production": {
+      "debug": false,
+      "loglevel": "warn",
+      "services": {
+        "mockEnabled": false
+      }
+    }
+  },
+  "constants": {
+    "DATE_FORMAT": "YYYY-MM-DD",
+    "TIME_FORMAT": "HH:mm:ss",
+    "CURRENCY": "USD",
+    "LANGUAGES": ["en", "es", "fr", "de", "zh"],
+    "TIMEZONE": "UTC",
+    "MAX_UPLOAD_SIZE": 10485760,
+    "PAGINATION": {
+      "DEFAULT_LIMIT": 20,
+      "MAX_LIMIT": 100
+    }
+  }
 })
 
 const rightContent = ref({
-  name: "JSON Diff Tool",
-  description: "A modified version",
-  version: "2.0.0"
+  "config": {
+    "name": "JSON Compare Demo",
+    "version": "2.0.0",
+    "description": "An improved comprehensive example to test JSON diff functionality",
+    "author": {
+      "name": "Test User",
+      "email": "updated@example.com",
+      "url": "https://example.com"
+    },
+    "license": "Apache-2.0",
+    "isProduction": true,
+    "debug": false
+  },
+  "server": {
+    "host": "api.example.com",
+    "port": 8080,
+    "protocol": "https",
+    "timeout": 30000,
+    "retryCount": 5,
+    "headers": {
+      "Content-Type": "application/json",
+      "Accept": "*/*",
+      "User-Agent": "JSON-Diff-Test-v2",
+      "Authorization": "Bearer {{token}}"
+    }
+  },
+  "database": {
+    "main": {
+      "host": "db.example.com",
+      "port": 5432,
+      "user": "admin",
+      "password": "new-secure-password",
+      "name": "maindb",
+      "options": {
+        "ssl": true,
+        "timeout": 5000,
+        "pool": {
+          "max": 30,
+          "min": 10,
+          "idle": 10000
+        }
+      }
+    },
+    "replica": {
+      "host": "replica.example.com",
+      "port": 5432,
+      "user": "reader",
+      "password": "reader123",
+      "name": "maindb-replica",
+      "options": {
+        "ssl": true,
+        "timeout": 3000,
+        "pool": {
+          "max": 10,
+          "min": 2,
+          "idle": 10000
+        }
+      }
+    },
+    "analytics": {
+      "host": "analytics.example.com",
+      "port": 5432,
+      "user": "analyst",
+      "password": "analyst123",
+      "name": "analytics-db",
+      "options": {
+        "ssl": true,
+        "timeout": 10000,
+        "pool": {
+          "max": 5,
+          "min": 1,
+          "idle": 30000
+        }
+      }
+    }
+  },
+  "features": {
+    "authentication": {
+      "enabled": true,
+      "methods": ["local", "oauth", "ldap", "saml"],
+      "jwt": {
+        "secret": "new-secret-key",
+        "expiresIn": "7d"
+      },
+      "oauth": {
+        "google": {
+          "clientId": "new-google-client-id",
+          "clientSecret": "new-google-client-secret"
+        },
+        "github": {
+          "clientId": "github-client-id",
+          "clientSecret": "github-client-secret"
+        },
+        "facebook": {
+          "clientId": "facebook-client-id",
+          "clientSecret": "facebook-client-secret"
+        }
+      }
+    },
+    "logging": {
+      "enabled": true,
+      "level": "warn",
+      "transports": ["console", "file", "elasticsearch"],
+      "format": "json",
+      "files": {
+        "info": "logs/info.log",
+        "error": "logs/error.log",
+        "debug": "logs/debug.log",
+        "warn": "logs/warn.log"
+      }
+    },
+    "caching": {
+      "enabled": true,
+      "driver": "redis",
+      "ttl": 7200,
+      "redis": {
+        "host": "cache.example.com",
+        "port": 6379,
+        "password": "new-redis-password",
+        "cluster": true
+      }
+    },
+    "rateLimit": {
+      "enabled": true,
+      "windowMs": 900000,
+      "max": 100
+    }
+  },
+  "api": {
+    "endpoints": [
+      {
+        "path": "/users",
+        "method": "GET",
+        "auth": true,
+        "rate_limit": {
+          "max": 150,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": true,
+          "ttl": 300
+        }
+      },
+      {
+        "path": "/users/:id",
+        "method": "GET",
+        "auth": true,
+        "rate_limit": {
+          "max": 200,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": true,
+          "ttl": 60
+        }
+      },
+      {
+        "path": "/posts",
+        "method": "POST",
+        "auth": true,
+        "rate_limit": {
+          "max": 50,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": false
+        }
+      },
+      {
+        "path": "/comments",
+        "method": "GET",
+        "auth": false,
+        "rate_limit": {
+          "max": 300,
+          "window": "15m"
+        },
+        "cache": {
+          "enabled": true,
+          "ttl": 120
+        }
+      }
+    ],
+    "middlewares": [
+      "cors",
+      "helmet",
+      "body-parser",
+      "compression",
+      "rate-limiter",
+      "jwt-auth"
+    ],
+    "version": "v2"
+  },
+  "tasks": [
+    {
+      "name": "data-backup",
+      "schedule": "0 0 * * *",
+      "action": "backup_database",
+      "args": {
+        "target": "s3://backups.example.com",
+        "compress": true,
+        "encrypt": true
+      },
+      "retry": {
+        "attempts": 3,
+        "delay": 300
+      }
+    },
+    {
+      "name": "cache-flush",
+      "schedule": "0 */4 * * *",
+      "action": "flush_cache",
+      "args": {
+        "full": true
+      },
+      "retry": {
+        "attempts": 2,
+        "delay": 60
+      }
+    },
+    {
+      "name": "reports-generation",
+      "schedule": "0 7 * * 1",
+      "action": "generate_reports",
+      "args": {
+        "type": "weekly",
+        "format": "pdf"
+      },
+      "retry": {
+        "attempts": 3,
+        "delay": 600
+      }
+    }
+  ],
+  "notifications": {
+    "email": {
+      "enabled": true,
+      "provider": "ses",
+      "smtp": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": true,
+        "auth": {
+          "user": "notifications@example.com",
+          "pass": "new-smtp-password"
+        }
+      },
+      "templates": {
+        "welcome": "templates/email/welcome.html",
+        "password-reset": "templates/email/password-reset.html",
+        "invoice": "templates/email/invoice.html",
+        "verification": "templates/email/verification.html"
+      }
+    },
+    "push": {
+      "enabled": true,
+      "provider": "firebase",
+      "credentials": {
+        "projectId": "new-project-id",
+        "privateKey": "new-firebase-private-key"
+      },
+      "topics": [
+        "news",
+        "updates",
+        "promotions"
+      ]
+    },
+    "sms": {
+      "enabled": true,
+      "provider": "twilio",
+      "credentials": {
+        "accountSid": "twilio-account-sid",
+        "authToken": "twilio-auth-token",
+        "phoneNumber": "+15551234567"
+      }
+    }
+  },
+  "clients": {
+    "mobile": {
+      "ios": {
+        "minVersion": "1.5.0",
+        "currentVersion": "2.0.0",
+        "forceUpdate": true
+      },
+      "android": {
+        "minVersion": "1.5.0",
+        "currentVersion": "2.0.0",
+        "forceUpdate": true
+      }
+    },
+    "web": {
+      "supportedBrowsers": [
+        "chrome >= 70",
+        "firefox >= 70",
+        "safari >= 13",
+        "edge >= 18",
+        "opera >= 60"
+      ],
+      "assets": {
+        "baseUrl": "https://cdn.example.com/v2",
+        "cacheTime": 43200
+      }
+    }
+  },
+  "metrics": {
+    "enabled": true,
+    "provider": "datadog",
+    "interval": 30,
+    "endpoints": {
+      "scrape": "/metrics",
+      "health": "/health"
+    },
+    "alerting": {
+      "enabled": true,
+      "thresholds": {
+        "cpu": 75,
+        "memory": 85,
+        "disk": 80,
+        "latency": 300,
+        "errors": 5
+      },
+      "notifyChannels": [
+        "email",
+        "slack",
+        "pagerduty"
+      ]
+    }
+  },
+  "environments": {
+    "development": {
+      "debug": true,
+      "loglevel": "debug",
+      "services": {
+        "mockEnabled": true
+      }
+    },
+    "testing": {
+      "debug": true,
+      "loglevel": "info",
+      "services": {
+        "mockEnabled": true
+      }
+    },
+    "staging": {
+      "debug": false,
+      "loglevel": "info",
+      "services": {
+        "mockEnabled": false
+      }
+    },
+    "production": {
+      "debug": false,
+      "loglevel": "warn",
+      "services": {
+        "mockEnabled": false
+      }
+    },
+    "demo": {
+      "debug": false,
+      "loglevel": "info",
+      "services": {
+        "mockEnabled": false
+      }
+    }
+  },
+  "constants": {
+    "DATE_FORMAT": "YYYY-MM-DD",
+    "TIME_FORMAT": "HH:mm:ss",
+    "CURRENCY": "EUR",
+    "LANGUAGES": ["en", "es", "fr", "de", "zh", "ja", "ru"],
+    "TIMEZONE": "UTC",
+    "MAX_UPLOAD_SIZE": 20971520,
+    "PAGINATION": {
+      "DEFAULT_LIMIT": 25,
+      "MAX_LIMIT": 200
+    },
+    "SECURITY": {
+      "PASSWORD_MIN_LENGTH": 8,
+      "PASSWORD_REQUIRE_LOWERCASE": true,
+      "PASSWORD_REQUIRE_UPPERCASE": true,
+      "PASSWORD_REQUIRE_NUMBER": true,
+      "PASSWORD_REQUIRE_SYMBOL": true
+    }
+  }
 })
 
 function formatJSON(obj) {
@@ -34,7 +701,6 @@ function formatJSON(obj) {
 function handleFormat() {
   try {
     if (isCompareMode.value) {
-      // 在比较模式下，格式化两个编辑器
       if (leftEditor) {
         const leftContent = JSON.parse(leftEditor.getValue())
         leftEditor.setValue(formatJSON(leftContent))
@@ -44,7 +710,6 @@ function handleFormat() {
         rightEditor.setValue(formatJSON(rightContent))
       }
     } else {
-      // 在单编辑器模式下，只格式化左侧编辑器
       if (leftEditor) {
         const content = JSON.parse(leftEditor.getValue())
         leftEditor.setValue(formatJSON(content))
@@ -58,7 +723,6 @@ function handleFormat() {
 function handleSort() {
   try {
     if (isCompareMode.value) {
-      // 在比较模式下，排序两个编辑器
       if (leftEditor) {
         const leftContent = JSON.parse(leftEditor.getValue())
         const sortedLeft = sortJSON(leftContent)
@@ -70,7 +734,6 @@ function handleSort() {
         rightEditor.setValue(formatJSON(sortedRight))
       }
     } else {
-      // 在单编辑器模式下，只排序左侧编辑器
       if (leftEditor) {
         const content = JSON.parse(leftEditor.getValue())
         const sorted = sortJSON(content)
@@ -85,7 +748,6 @@ function handleSort() {
 async function initializeMonaco() {
   monaco = await loader.init()
   
-  // 设置编辑器选项
   const editorOptions = {
     language: 'json',
     theme: 'vs',
@@ -97,17 +759,15 @@ async function initializeMonaco() {
     renderValidationDecorations: 'on',
     formatOnPaste: true,
     formatOnType: true,
-    glyphMargin: true  // 启用装订线，以显示差异标记
+    glyphMargin: true
   }
 
-  // 创建左侧编辑器
   leftEditor = monaco.editor.create(leftEditorContainer.value, {
     ...editorOptions,
     value: formatJSON(leftContent.value),
     readOnly: false
   })
 
-  // 监听左侧编辑器内容变化
   leftEditor.onDidChangeModelContent(() => {
     try {
       if (isCompareMode.value && rightEditor) {
@@ -122,7 +782,6 @@ async function initializeMonaco() {
 function initializeRightEditor() {
   if (!rightEditorContainer.value || !monaco) return
 
-  // 创建右侧编辑器
   rightEditor = monaco.editor.create(rightEditorContainer.value, {
     language: 'json',
     theme: 'vs',
@@ -138,13 +797,33 @@ function initializeRightEditor() {
     readOnly: false
   })
 
-  // 监听右侧编辑器内容变化
   rightEditor.onDidChangeModelContent(() => {
     try {
       highlightDifferences()
     } catch (e) {
       console.error('Invalid JSON in right editor')
     }
+  })
+  
+  setupScrollSync()
+}
+
+function setupScrollSync() {
+  if (!leftEditor || !rightEditor) return
+  
+  let isSyncing = false
+  
+  leftEditor.onDidScrollChange((e) => {
+    if (isSyncing) return
+    
+    isSyncing = true
+    
+    rightEditor.setScrollTop(e.scrollTop)
+    rightEditor.setScrollLeft(e.scrollLeft)
+    
+    setTimeout(() => {
+      isSyncing = false
+    }, 100)
   })
 }
 
@@ -155,18 +834,14 @@ function highlightDifferences() {
   const rightContent = rightEditor.getValue()
   
   try {
-    // 解析 JSON
     const leftJson = JSON.parse(leftContent)
     const rightJson = JSON.parse(rightContent)
     
-    // 计算差异
     const differences = compareJSON(leftJson, rightJson)
     
-    // 预先构建行号映射，避免重复解析
     const leftLineMap = buildLineNumberMap(leftContent)
     const rightLineMap = buildLineNumberMap(rightContent)
     
-    // Clear previous decorations
     leftDecorations.value = leftEditor.deltaDecorations(leftDecorations.value, [])
     rightDecorations.value = rightEditor.deltaDecorations(rightDecorations.value, [])
     
@@ -174,7 +849,6 @@ function highlightDifferences() {
     const rightHighlights = []
     
     differences.forEach(diff => {
-      // 使用预构建的行号映射调用 findLineNumber
       const leftLines = findLineNumber(leftContent, diff.path, leftLineMap)
       const rightLines = findLineNumber(rightContent, diff.path, rightLineMap)
       
@@ -251,15 +925,15 @@ function toggleCompareMode() {
   isCompareMode.value = !isCompareMode.value
   
   if (isCompareMode.value) {
-    // 切换到对比模式，保持左侧编辑器，添加右侧编辑器
     setTimeout(() => {
       if (!rightEditor && rightEditorContainer.value) {
         initializeRightEditor()
         highlightDifferences()
+      } else if (rightEditor) {
+        setupScrollSync()
       }
     })
   } else {
-    // 切换回单编辑器模式，移除右侧编辑器
     if (rightEditor) {
       rightEditor.dispose()
       rightEditor = null
@@ -305,7 +979,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* 重置默认样式 */
 * {
   margin: 0;
   padding: 0;
@@ -389,7 +1062,6 @@ html, body {
   width: 50%;
 }
 
-/* 差异高亮样式 */
 .removed-line {
   background-color: rgba(255, 0, 0, 0.1);
 }
@@ -420,7 +1092,6 @@ html, body {
   margin-left: 3px;
 }
 
-/* Monaco Editor 自定义样式 */
 .editor-component :deep(.monaco-editor) {
   padding-top: 10px;
 }
@@ -429,7 +1100,6 @@ html, body {
   background-color: #f8f9fa;
 }
 
-/* 差异视图样式 */
 .line-modified {
   background-color: rgba(255, 220, 100, 0.2) !important;
 }
