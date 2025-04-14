@@ -95,6 +95,9 @@ function formatJSON(obj) {
   return JSON.stringify(obj, null, 2)
 }
 
+// Add the rightEditorContent declaration after formatJSON is defined
+const rightEditorContent = ref(formatJSON(rightContent.value))
+
 // 加载左侧JSON文件
 function handleLoadLeftFile() {
   if (!isUTools.value) {
@@ -410,7 +413,7 @@ function initializeRightEditor() {
   if (!isCompareMode.value || !rightEditorContainer.value) return
   
   rightEditor = createEditor(rightEditorContainer.value, {
-    value: formatJSON(rightContent.value),
+    value: rightEditorContent.value, // Use the stored content instead of default
     readOnly: false
   })
   
@@ -419,6 +422,8 @@ function initializeRightEditor() {
   // 设置右侧编辑器的内容变化监听
   rightEditor.onDidChangeModelContent(() => {
     try {
+      // Update the stored content when right editor changes
+      rightEditorContent.value = rightEditor.getValue()
       highlightDifferences()
     } catch (e) {
       console.error('Invalid JSON in right editor:', e)
@@ -556,6 +561,8 @@ function toggleCompareMode() {
     })
   } else {
     if (rightEditor) {
+      // Save the right editor content before disposing
+      rightEditorContent.value = rightEditor.getValue()
       rightEditor.dispose()
       rightEditor = null
     }
