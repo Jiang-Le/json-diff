@@ -559,6 +559,10 @@ function toggleCompareMode() {
       rightEditor.dispose()
       rightEditor = null
     }
+    // 关闭对比模式时清除左侧编辑器中的高亮装饰
+    if (leftEditor) {
+      leftDecorations.value = leftEditor.deltaDecorations(leftDecorations.value, [])
+    }
   }
 }
 
