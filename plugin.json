@@ -10,6 +10,9 @@
   "development": {
     "main": "http://localhost:5173/"
   },
+  "pluginSetting": {
+    "single": false
+  },
   "features": [
     {
       "code": "json-diff",
